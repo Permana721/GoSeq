@@ -1,0 +1,69 @@
+{{define "content"}}
+<div class="editor-container">
+  <!-- Local Draft Alert Banner -->
+  <div id="draftAlert" class="draft-alert-banner" style="display: none;">
+    <div>
+      <strong>Unsaved local draft found<span id="draftTimeInfo"></span>.</strong>
+      Would you like to restore it or discard it?
+    </div>
+    <div class="draft-alert-actions">
+      <button type="button" id="restoreDraftBtn" class="btn btn-sm btn-primary">Restore Draft</button>
+      <button type="button" id="discardDraftBtn" class="btn btn-sm">Discard</button>
+    </div>
+  </div>
+
+  <!-- Editor Toolbar -->
+  <div class="editor-toolbar">
+    <div class="editor-controls-left">
+      <div class="date-selector-group">
+        <label for="journalDateInput" style="font-size:0.85rem;color:var(--text-muted);font-weight:500;">Date:</label>
+        <input type="text" id="journalDateInput" class="date-input" value="{{.Date}}" pattern="\d{4}_\d{2}_\d{2}" placeholder="YYYY_MM_DD" title="Format: YYYY_MM_DD">
+        {{if .AvailableDates}}
+          <select id="dateDropdown" class="date-input" onchange="if(this.value) window.location.href='/write?date='+this.value;" style="max-width: 140px;">
+            <option value="">Jump to date...</option>
+            {{range .AvailableDates}}
+              <option value="{{.}}"{{if eq . $.Date}} selected{{end}}>{{.}}</option>
+            {{end}}
+          </select>
+        {{end}}
+      </div>
+      <a href="/journal/{{.Date}}" target="_blank" class="nav-btn" title="View Public Page for this date">View ↗</a>
+    </div>
+
+    <div class="editor-controls-right">
+      <div class="mode-toggle">
+        <button type="button" class="active" data-mode="edit">Edit</button>
+        <button type="button" data-mode="split">Split</button>
+        <button type="button" data-mode="preview">Preview</button>
+      </div>
+
+      <span id="statusIndicator" class="status-indicator">Up to date</span>
+
+      <button type="button" id="copyBtn" class="btn btn-sm" title="Copy raw Markdown to clipboard">Copy Markdown</button>
+      <button type="button" id="saveBtn" class="btn btn-sm btn-primary" title="Save to disk (Ctrl+S / Cmd+S)">Save</button>
+    </div>
+  </div>
+
+  <!-- Editor Workspace -->
+  <form id="writeForm" action="/write" method="POST">
+    <input type="hidden" name="date" value="{{.Date}}">
+
+    <div id="editorWorkspace" class="editor-workspace mode-edit">
+      <div id="editorPane" class="editor-pane">
+        <textarea id="editorTextarea" name="content" class="editor-textarea" placeholder="- Today's focus and tasks..." autofocus spellcheck="false">{{.Content}}</textarea>
+        <div class="editor-footer-help">
+          <span class="shortcut-hint"><kbd>Ctrl+S</kbd> to save</span>
+          <span class="shortcut-hint"><kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> to indent</span>
+          <span class="shortcut-hint"><kbd>Enter</kbd> to continue bullet</span>
+        </div>
+      </div>
+
+      <div id="previewPane" class="preview-pane" style="display: none;">
+        <div id="previewContent" class="preview-pane-content"></div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script src="/static/js/editor.js"></script>
+{{end}}

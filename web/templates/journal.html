@@ -1,0 +1,48 @@
+{{define "content"}}
+<div class="journal-single-view">
+  <div style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+    <a href="/" class="nav-btn">← Back to All Journals</a>
+    {{if .IsAdmin}}
+      <a href="/write?date={{.Entry.Date}}" class="btn btn-sm">Edit Entry</a>
+    {{end}}
+  </div>
+
+  <article class="journal-card" style="border-bottom: none;">
+    <header class="journal-header">
+      <h1 class="journal-title">{{.Entry.DisplayDate}}</h1>
+      <span class="journal-date-tag">{{.Entry.Date}}</span>
+    </header>
+
+    <div class="journal-body">
+      {{.Entry.HTMLContent}}
+    </div>
+
+    {{if or .Entry.Tags .Entry.PageLinks}}
+      <footer class="journal-footer">
+        {{range .Entry.Tags}}
+          <a href="/?tag={{.}}" class="tag-badge">#{{.}}</a>
+        {{end}}
+        {{range .Entry.PageLinks}}
+          <a href="/?link={{.}}" class="wikilink-badge"><span class="wl-brackets">[[</span>{{.}}<span class="wl-brackets">]]</span></a>
+        {{end}}
+      </footer>
+    {{end}}
+  </article>
+
+  <nav class="pagination" aria-label="Journal navigation" style="margin-top: 2rem;">
+    {{if .PrevDate}}
+      <a href="/journal/{{.PrevDate}}" class="page-btn">← {{.PrevDateShort}}</a>
+    {{else}}
+      <span class="page-btn disabled">← Newer</span>
+    {{end}}
+
+    <a href="/" class="page-info" style="color:var(--text-muted);text-decoration:none;">All Journals</a>
+
+    {{if .NextDate}}
+      <a href="/journal/{{.NextDate}}" class="page-btn">{{.NextDateShort}} →</a>
+    {{else}}
+      <span class="page-btn disabled">Older →</span>
+    {{end}}
+  </nav>
+</div>
+{{end}}

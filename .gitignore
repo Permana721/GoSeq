@@ -1,0 +1,17 @@
+# Binaries
+journal-server
+GoSeq
+goseq
+*.exe
+*.test
+
+# Environment & Local Secrets
+.env
+
+# Local Journal Data (optional; keep local notes private)
+journals/
+*.tmp.*
+
+# OS files
+.DS_Store
+Thumbs.db
