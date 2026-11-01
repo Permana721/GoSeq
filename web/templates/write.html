@@ -16,18 +16,30 @@
   <div class="editor-toolbar">
     <div class="editor-controls-left">
       <div class="date-selector-group">
-        <label for="journalDateInput" style="font-size:0.85rem;color:var(--text-muted);font-weight:500;">Date:</label>
-        <input type="text" id="journalDateInput" class="date-input" value="{{.Date}}" pattern="\d{4}_\d{2}_\d{2}" placeholder="YYYY_MM_DD" title="Format: YYYY_MM_DD">
-        {{if .AvailableDates}}
-          <select id="dateDropdown" class="date-input" onchange="if(this.value) window.location.href='/write?date='+this.value;" style="max-width: 140px;">
-            <option value="">Jump to date...</option>
-            {{range .AvailableDates}}
-              <option value="{{.}}"{{if eq . $.Date}} selected{{end}}>{{.}}</option>
+        <label for="sectionInput" style="font-size:0.85rem;color:var(--text-muted);font-weight:500;">Section:</label>
+        {{if .AvailableSections}}
+          <select id="sectionSelect" class="date-input" onchange="window.location.href='/write?section='+this.value;" style="max-width: 140px;">
+            {{range .AvailableSections}}
+              <option value="{{.}}"{{if eq . $.Section}} selected{{end}}>{{.}}</option>
+            {{end}}
+          </select>
+        {{else}}
+          <input type="text" id="sectionInput" class="date-input" value="{{.Section}}" placeholder="section" style="max-width: 120px;">
+        {{end}}
+        <label for="slugInput" style="font-size:0.85rem;color:var(--text-muted);font-weight:500;margin-left:0.5rem;">Slug:</label>
+        <input type="text" id="slugInput" class="date-input" value="{{.Slug}}" placeholder="article-slug" style="max-width: 160px;">
+        {{if .AvailableArticles}}
+          <select id="articleDropdown" class="date-input" onchange="if(this.value) window.location.href='/write?section={{.Section}}&slug='+this.value;" style="max-width: 160px;">
+            <option value="">Jump to article...</option>
+            {{range .AvailableArticles}}
+              <option value="{{.}}"{{if eq . $.Slug}} selected{{end}}>{{.}}</option>
             {{end}}
           </select>
         {{end}}
       </div>
-      <a href="/journal/{{.Date}}" target="_blank" class="nav-btn" title="View Public Page for this date">View ↗</a>
+      {{if and .Section .Slug}}
+        <a href="/read/{{.Section}}/{{.Slug}}" target="_blank" class="nav-btn" title="View Public Page">View ↗</a>
+      {{end}}
     </div>
 
     <div class="editor-controls-right">
@@ -46,11 +58,12 @@
 
   <!-- Editor Workspace -->
   <form id="writeForm" action="/write" method="POST">
-    <input type="hidden" name="date" value="{{.Date}}">
+    <input type="hidden" id="sectionHidden" name="section" value="{{.Section}}">
+    <input type="hidden" id="slugHidden" name="slug" value="{{.Slug}}">
 
     <div id="editorWorkspace" class="editor-workspace mode-edit">
       <div id="editorPane" class="editor-pane">
-        <textarea id="editorTextarea" name="content" class="editor-textarea" placeholder="- Today's focus and tasks..." autofocus spellcheck="false">{{.Content}}</textarea>
+        <textarea id="editorTextarea" name="content" class="editor-textarea" placeholder="- Start writing..." autofocus spellcheck="false">{{.Content}}</textarea>
         <div class="editor-footer-help">
           <span class="shortcut-hint"><kbd>Ctrl+S</kbd> to save</span>
           <span class="shortcut-hint"><kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> to indent</span>

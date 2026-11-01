@@ -3,7 +3,9 @@
   'use strict';
 
   const textarea = document.getElementById('editorTextarea');
-  const dateInput = document.getElementById('journalDateInput');
+  const slugInput = document.getElementById('slugInput');
+  const sectionHidden = document.getElementById('sectionHidden');
+  const slugHidden = document.getElementById('slugHidden');
   const statusIndicator = document.getElementById('statusIndicator');
   const saveBtn = document.getElementById('saveBtn');
   const copyBtn = document.getElementById('copyBtn');
@@ -14,12 +16,12 @@
   const workspace = document.getElementById('editorWorkspace');
   const modeButtons = document.querySelectorAll('.mode-toggle button');
 
-  if (!textarea || !dateInput) return;
+  if (!textarea) return;
 
-  let activeDate = dateInput.value;
+  let activeSection = (sectionHidden && sectionHidden.value) || '';
+  let activeSlug = (slugHidden && slugHidden.value) || '';
   let serverContent = textarea.value;
   let isDirty = false;
-  let saveDebounceTimer = null;
   let draftDebounceTimer = null;
 
   // Format current time as HH:MM:SS
@@ -34,12 +36,12 @@
   }
 
   // --- Draft Management (localStorage) ---
-  function getDraftKey(date) {
-    return 'journal_draft_' + date;
+  function getDraftKey(section, slug) {
+    return 'goseq_draft_' + section + '_' + slug;
   }
 
   function checkLocalDraft() {
-    const draftKey = getDraftKey(activeDate);
+    const draftKey = getDraftKey(activeSection, activeSlug);
     const draftRaw = localStorage.getItem(draftKey);
     if (!draftRaw) {
       if (draftAlert) draftAlert.style.display = 'none';
@@ -66,7 +68,7 @@
   }
 
   function saveLocalDraft() {
-    const draftKey = getDraftKey(activeDate);
+    const draftKey = getDraftKey(activeSection, activeSlug);
     if (textarea.value !== serverContent) {
       localStorage.setItem(draftKey, JSON.stringify({
         content: textarea.value,
@@ -78,7 +80,7 @@
   }
 
   function discardLocalDraft() {
-    const draftKey = getDraftKey(activeDate);
+    const draftKey = getDraftKey(activeSection, activeSlug);
     localStorage.removeItem(draftKey);
     if (draftAlert) draftAlert.style.display = 'none';
     if (textarea.value !== serverContent) {
@@ -91,7 +93,7 @@
   }
 
   function restoreLocalDraft() {
-    const draftKey = getDraftKey(activeDate);
+    const draftKey = getDraftKey(activeSection, activeSlug);
     const draftRaw = localStorage.getItem(draftKey);
     if (draftRaw) {
       try {
@@ -111,6 +113,12 @@
 
   // --- Server Save (AJAX fetch) ---
   async function saveToServer() {
+    // Sync slug from input if changed
+    if (slugInput && slugInput.value.trim()) {
+      activeSlug = slugInput.value.trim();
+      if (slugHidden) slugHidden.value = activeSlug;
+    }
+
     setStatus('Saving...', 'saving');
     const contentToSave = textarea.value;
 
@@ -122,7 +130,8 @@
           'Accept': 'application/json'
         },
         body: JSON.stringify({
-          date: activeDate,
+          section: activeSection,
+          slug: activeSlug,
           content: contentToSave
         })
       });
@@ -137,7 +146,7 @@
       isDirty = false;
 
       // Clean local draft on success
-      localStorage.removeItem(getDraftKey(activeDate));
+      localStorage.removeItem(getDraftKey(activeSection, activeSlug));
       if (draftAlert) draftAlert.style.display = 'none';
 
       const savedTime = data.saved_at || formatTime(new Date());
@@ -169,11 +178,9 @@
       if (start === end) {
         const lineStart = val.lastIndexOf('\n', start - 1) + 1;
         if (!e.shiftKey) {
-          // Indent by 2 spaces
           this.value = val.substring(0, lineStart) + '  ' + val.substring(lineStart);
           this.selectionStart = this.selectionEnd = start + 2;
         } else {
-          // Outdent by 2 spaces
           if (val.startsWith('  ', lineStart)) {
             this.value = val.substring(0, lineStart) + val.substring(lineStart + 2);
             this.selectionStart = this.selectionEnd = Math.max(lineStart, start - 2);
@@ -223,7 +230,7 @@
     if (e.key === 'Enter') {
       const start = this.selectionStart;
       const end = this.selectionEnd;
-      if (start !== end) return; // Allow normal overwrite on selection
+      if (start !== end) return;
 
       const val = this.value;
       const lineStart = val.lastIndexOf('\n', start - 1) + 1;
@@ -231,7 +238,6 @@
       if (lineEnd === -1) lineEnd = val.length;
 
       const currentLine = val.substring(lineStart, lineEnd);
-      // Match leading indentation and bullet marker "- " or "* "
       const match = currentLine.match(/^(\s*)(-\s*|\*\s*)?(.*)$/);
 
       if (match && match[2]) {
@@ -239,16 +245,13 @@
         const bullet = match[2];
         const text = match[3];
 
-        // Empty bullet line -> unindent or exit bullet
         if (text.trim() === '') {
           e.preventDefault();
           if (indent.length >= 2) {
-            // Outdent by 2 spaces
             const newIndent = indent.substring(2);
             this.value = val.substring(0, lineStart) + newIndent + bullet + val.substring(lineEnd);
             this.selectionStart = this.selectionEnd = lineStart + newIndent.length + bullet.length;
           } else {
-            // Line is top-level bullet "- ", exit bullet completely
             this.value = val.substring(0, lineStart) + val.substring(lineEnd);
             this.selectionStart = this.selectionEnd = lineStart;
           }
@@ -256,12 +259,8 @@
           return;
         }
 
-        // Non-empty bullet line -> continue bullet at same indent level
         e.preventDefault();
-        const beforeCursor = val.substring(lineStart, start);
-        const afterCursor = val.substring(start, lineEnd);
         const insertion = '\n' + indent + bullet;
-
         this.value = val.substring(0, start) + insertion + val.substring(start);
         this.selectionStart = this.selectionEnd = start + insertion.length;
         onInputChanged();
@@ -276,7 +275,6 @@
       setStatus('Unsaved changes', 'unsaved');
     }
 
-    // Auto-save draft locally (debounced 400ms)
     clearTimeout(draftDebounceTimer);
     draftDebounceTimer = setTimeout(saveLocalDraft, 400);
 
@@ -337,22 +335,6 @@
   if (restoreDraftBtn) restoreDraftBtn.addEventListener('click', restoreLocalDraft);
   if (discardDraftBtn) discardDraftBtn.addEventListener('click', discardLocalDraft);
 
-  // --- Date Switcher ---
-  if (dateInput) {
-    dateInput.addEventListener('change', () => {
-      const newDate = dateInput.value;
-      if (newDate && newDate !== activeDate) {
-        if (isDirty) {
-          if (!confirm('You have unsaved changes. Discard changes and switch date?')) {
-            dateInput.value = activeDate;
-            return;
-          }
-        }
-        window.location.href = '/write?date=' + encodeURIComponent(newDate);
-      }
-    });
-  }
-
   // Before unload warning if unsaved
   window.addEventListener('beforeunload', (e) => {
     if (isDirty) {
@@ -393,7 +375,7 @@
 
   function renderClientOutliner(raw) {
     if (!raw.trim()) {
-      return '<div class="empty-state"><p>Nothing written yet for this date.</p></div>';
+      return '<div class="empty-state"><p>Nothing written yet.</p></div>';
     }
 
     const lines = raw.replace(/\r\n/g, '\n').split('\n');
@@ -465,7 +447,6 @@
     for (const blk of blocks) {
       blk.children = [];
 
-      // Process code fences inside blk.raw
       const codeBlocks = [];
       let text = blk.raw.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (match, lang, body) => {
         const idx = codeBlocks.length;
@@ -474,7 +455,6 @@
         return `___CODE_BLOCK_${idx}___`;
       });
 
-      // Task status
       let isTodo = false;
       let isDone = false;
       const trimmed = text.trim();
@@ -488,7 +468,6 @@
 
       let rendered = renderInline(text);
 
-      // Restore code fences
       codeBlocks.forEach((cb, idx) => {
         rendered = rendered.replace(`___CODE_BLOCK_${idx}___`, cb);
       });

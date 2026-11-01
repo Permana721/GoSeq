@@ -43,6 +43,13 @@ type ParsedJournal struct {
 	PageLinks   []string
 }
 
+// ParseContent parses raw markdown content and returns (html, tags, pageLinks).
+// This is the new content-layer entry point; ParseJournal is kept for backward compatibility.
+func ParseContent(raw string) (template.HTML, []string, []string) {
+	pj := ParseJournal("", "", "", raw)
+	return pj.HTMLContent, pj.Tags, pj.PageLinks
+}
+
 func ParseJournal(dateStr, displayDate, shortDate, rawContent string) *ParsedJournal {
 	lines := strings.Split(strings.ReplaceAll(rawContent, "\r\n", "\n"), "\n")
 

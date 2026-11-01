@@ -1,0 +1,51 @@
+{{define "content"}}
+<div class="article-detail">
+  <div class="article-detail-header">
+    <div class="article-detail-nav">
+      <a href="/category/{{.Section}}" class="article-detail-back">← Back to {{.SectionDisplayName}}</a>
+      {{if .IsAdmin}}
+        <a href="/write?section={{.Section}}&slug={{.Article.Slug}}" class="btn btn-sm">Edit Article</a>
+      {{end}}
+    </div>
+    <h1 class="article-detail-title">{{.Article.Title}}</h1>
+    <div class="article-detail-meta">
+      <span class="lang-badge lang-{{lower .Article.Lang}}">{{.Article.Lang}}</span>
+      <span class="article-date">{{.Article.DateDisplay}}</span>
+      {{if .Article.Category}}
+        <span class="article-sep">—</span>
+        <span class="article-category">{{.Article.Category}}</span>
+      {{end}}
+    </div>
+  </div>
+
+  <div class="article-body">
+    {{.Article.HTMLContent}}
+  </div>
+
+  {{if or .Article.Tags .Article.PageLinks}}
+  <footer class="journal-footer">
+    {{range .Article.Tags}}
+      <span class="tag-badge">#{{.}}</span>
+    {{end}}
+    {{range .Article.PageLinks}}
+      <span class="wikilink-badge"><span class="wl-brackets">[[</span>{{.}}<span class="wl-brackets">]]</span></span>
+    {{end}}
+  </footer>
+  {{end}}
+
+  {{if or .PrevArticle .NextArticle}}
+  <nav class="pagination" aria-label="Article navigation">
+    {{if .PrevArticle}}
+      <a href="/read/{{.Section}}/{{.PrevArticle.Slug}}" class="page-btn">← {{.PrevArticle.Title}}</a>
+    {{else}}
+      <span class="page-btn disabled">← Previous</span>
+    {{end}}
+    {{if .NextArticle}}
+      <a href="/read/{{.Section}}/{{.NextArticle.Slug}}" class="page-btn">{{.NextArticle.Title}} →</a>
+    {{else}}
+      <span class="page-btn disabled">Next →</span>
+    {{end}}
+  </nav>
+  {{end}}
+</div>
+{{end}}

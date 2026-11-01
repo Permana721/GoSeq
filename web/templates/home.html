@@ -1,0 +1,26 @@
+{{define "content"}}
+<div class="home-hero">
+  <h1 class="home-title">Digital Garden</h1>
+  <p class="home-subtitle">Notes, thoughts, and technical learnings.</p>
+</div>
+
+<div class="home-cards">
+  {{range .Sections}}
+  <a href="/category/{{.Name}}" class="home-card" id="card-{{.Name}}">
+    <div class="home-card-header">
+      <h2 class="home-card-title">{{.DisplayName}}</h2>
+      {{if eq .Name "til"}}
+        <span class="home-card-badge">TIL</span>
+      {{end}}
+    </div>
+    {{if .Description}}
+      <p class="home-card-desc">{{.Description}}</p>
+    {{end}}
+    <div class="home-card-footer">
+      <span class="home-card-count">{{len .Articles}} {{if eq (len .Articles) 1}}entry{{else}}entries{{end}}</span>
+      <span class="home-card-link">View list &rarr;</span>
+    </div>
+  </a>
+  {{end}}
+</div>
+{{end}}

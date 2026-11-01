@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 	_ "time/tzdata"
@@ -15,7 +14,7 @@ import (
 type Config struct {
 	Host          string
 	Port          string
-	JournalsDir   string
+	ContentDir    string
 	AdminUsername string
 	AdminPassword string
 	SessionSecret []byte
@@ -69,7 +68,7 @@ func LoadConfig() (*Config, error) {
 
 	host := getEnv("HOST", "127.0.0.1")
 	port := getEnv("PORT", "5000")
-	journalsDir := getEnv("JOURNALS_DIR", "./journals")
+	contentDir := getEnv("CONTENT_DIR", "./content")
 	adminUsername := getEnv("ADMIN_USERNAME", "admin")
 	adminPassword := getEnv("ADMIN_PASSWORD", "admin")
 	secureCookie := strings.ToLower(getEnv("SECURE_COOKIE", "false")) == "true"
@@ -92,14 +91,6 @@ func LoadConfig() (*Config, error) {
 		secretBytes = []byte(secretStr)
 	}
 
-	absJournalsDir, err := filepath.Abs(journalsDir)
-	if err != nil {
-		return nil, fmt.Errorf("invalid journals directory path: %w", err)
-	}
-	if err := os.MkdirAll(absJournalsDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create journals directory %s: %w", absJournalsDir, err)
-	}
-
 	if adminUsername == "admin" && adminPassword == "admin" {
 		log.Printf("Notice: Using default admin credentials (admin/admin). Please configure ADMIN_USERNAME and ADMIN_PASSWORD in your .env.")
 	}
@@ -107,7 +98,7 @@ func LoadConfig() (*Config, error) {
 	return &Config{
 		Host:          host,
 		Port:          port,
-		JournalsDir:   absJournalsDir,
+		ContentDir:    contentDir,
 		AdminUsername: adminUsername,
 		AdminPassword: adminPassword,
 		SessionSecret: secretBytes,

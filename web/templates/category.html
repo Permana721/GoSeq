@@ -1,0 +1,42 @@
+{{define "content"}}
+<div class="category-view">
+  <div class="category-header">
+    <a href="/" class="category-back">← Back to Home</a>
+    <div class="category-title-row">
+      <h1 class="category-title">{{.Section.DisplayName}}</h1>
+      <span class="category-badge">{{len .Section.Articles}} {{if eq (len .Section.Articles) 1}}entry{{else}}entries{{end}}</span>
+    </div>
+    {{if .Section.Description}}
+      <p class="category-desc">{{.Section.Description}}</p>
+    {{end}}
+  </div>
+
+  <div class="article-list">
+    {{if .Section.Articles}}
+      {{range .Section.Articles}}
+      <article class="article-row">
+        <span class="lang-badge lang-{{lower .Lang}}">{{.Lang}}</span>
+        <div class="article-info">
+          <a href="/read/{{.Section}}/{{.Slug}}" class="article-title">{{.Title}}</a>
+          <div class="article-meta">
+            <span class="article-date">{{.DateDisplay}}</span>
+            {{if .Category}}
+              <span class="article-sep">—</span>
+              <span class="article-category">{{.Category}}</span>
+            {{end}}
+          </div>
+        </div>
+      </article>
+      {{end}}
+    {{else}}
+      <div class="empty-state">
+        <h3>No Entries Found</h3>
+        <p>No articles have been published in this category yet.</p>
+        {{if .IsAdmin}}
+          <p style="margin-top:1rem;"><a href="/write?section={{.CategorySlug}}" class="btn btn-primary">Start Writing</a></p>
+        {{end}}
+      </div>
+    {{end}}
+  </div>
+</div>
+{{end}}

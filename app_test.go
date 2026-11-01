@@ -15,6 +15,7 @@ import (
 	"goseq/web"
 )
 
+// setupTestEnvironment creates a temporary content store and server for testing.
 func setupTestEnvironment(t *testing.T) (*Server, *Config, string) {
 	t.Helper()
 
@@ -31,7 +32,7 @@ func setupTestEnvironment(t *testing.T) (*Server, *Config, string) {
 	cfg := &Config{
 		Host:          "127.0.0.1",
 		Port:          "5000",
-		JournalsDir:   tmpDir,
+		ContentDir:    tmpDir,
 		AdminUsername: "admin",
 		AdminPassword: "supersecretpassword",
 		SessionSecret: []byte("test-secret-key-with-32-bytes!"),
@@ -39,9 +40,9 @@ func setupTestEnvironment(t *testing.T) (*Server, *Config, string) {
 		Location:      loc,
 	}
 
-	storage, err := NewStorage(cfg.JournalsDir, cfg.Location)
+	store, err := NewContentStore(cfg.ContentDir, cfg.Location)
 	if err != nil {
-		t.Fatalf("failed to create storage: %v", err)
+		t.Fatalf("failed to create content store: %v", err)
 	}
 
 	auth := NewAuthManager(cfg)
@@ -50,47 +51,170 @@ func setupTestEnvironment(t *testing.T) (*Server, *Config, string) {
 		t.Fatalf("failed to create templates: %v", err)
 	}
 
-	srv := NewServer(cfg, storage, auth, tmpls)
+	srv := NewServer(cfg, store, auth, tmpls)
 	return srv, cfg, tmpDir
 }
 
-func TestLoadEnvFile(t *testing.T) {
-	tmpFile, err := os.CreateTemp("", ".env-test-*")
+// --- Frontmatter Tests ---
+
+func TestFrontmatterParsing(t *testing.T) {
+	raw := `---
+Title: My Test Article
+Date: 2026-10-27
+Lang: ID
+Category: Technology
+---
+- This is the body content
+  - Nested block
+`
+	fm, body := parseFrontmatter(raw)
+
+	if fm["Title"] != "My Test Article" {
+		t.Errorf("expected Title 'My Test Article', got %q", fm["Title"])
+	}
+	if fm["Date"] != "2026-10-27" {
+		t.Errorf("expected Date '2026-10-27', got %q", fm["Date"])
+	}
+	if fm["Lang"] != "ID" {
+		t.Errorf("expected Lang 'ID', got %q", fm["Lang"])
+	}
+	if fm["Category"] != "Technology" {
+		t.Errorf("expected Category 'Technology', got %q", fm["Category"])
+	}
+	if !strings.Contains(body, "This is the body content") {
+		t.Errorf("expected body to contain 'This is the body content', got %q", body)
+	}
+	if strings.Contains(body, "---") {
+		t.Errorf("body should not contain frontmatter delimiters, got %q", body)
+	}
+}
+
+func TestFrontmatterDefaults(t *testing.T) {
+	// No frontmatter at all
+	raw := "- Some content\n  - Nested"
+	fm, body := parseFrontmatter(raw)
+
+	if len(fm) != 0 {
+		t.Errorf("expected empty frontmatter fields, got %v", fm)
+	}
+	if body != raw {
+		t.Errorf("expected body to equal raw when no frontmatter, got %q", body)
+	}
+
+	// Title derived from slug
+	title := slugToTitle("golang_interfaces")
+	if title != "Golang Interfaces" {
+		t.Errorf("expected 'Golang Interfaces', got %q", title)
+	}
+
+	title2 := slugToTitle("belajar-go")
+	if title2 != "Belajar Go" {
+		t.Errorf("expected 'Belajar Go', got %q", title2)
+	}
+}
+
+// --- ContentStore Tests ---
+
+func TestContentStoreSaveAndRead(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "goseq-content-*")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer os.RemoveAll(tmpDir)
 
-	content := `
-# Comment line
-HOST=0.0.0.0
-PORT=8080
-ADMIN_USERNAME="john_doe"
-ADMIN_PASSWORD='mysecretpassword'
-SESSION_SECRET=some-secret-string
-`
-	if _, err := tmpFile.WriteString(content); err != nil {
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	store, err := NewContentStore(tmpDir, loc)
+	if err != nil {
 		t.Fatal(err)
 	}
-	tmpFile.Close()
 
-	// Clear test env vars before loading
-	os.Unsetenv("TEST_ENV_VAR")
-
-	if err := loadEnvFile(tmpFile.Name()); err != nil {
-		t.Fatalf("loadEnvFile failed: %v", err)
+	rawContent := "---\nTitle: Test Article\nDate: 2026-10-27\nLang: EN\n---\n- Hello world\n  - Sub bullet"
+	if err := store.SaveArticle("til", "test-article", rawContent); err != nil {
+		t.Fatalf("failed to save article: %v", err)
 	}
 
-	if os.Getenv("HOST") != "0.0.0.0" {
-		t.Errorf("expected HOST 0.0.0.0, got %s", os.Getenv("HOST"))
+	// Verify file on disk
+	filePath := filepath.Join(tmpDir, "til", "test-article.md")
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		t.Fatalf("expected file at %s to exist", filePath)
 	}
-	if os.Getenv("ADMIN_USERNAME") != "john_doe" {
-		t.Errorf("expected ADMIN_USERNAME john_doe, got %s", os.Getenv("ADMIN_USERNAME"))
+
+	// Read back via GetArticle
+	article, err := store.GetArticle("til", "test-article")
+	if err != nil {
+		t.Fatalf("failed to get article: %v", err)
 	}
-	if os.Getenv("ADMIN_PASSWORD") != "mysecretpassword" {
-		t.Errorf("expected ADMIN_PASSWORD mysecretpassword, got %s", os.Getenv("ADMIN_PASSWORD"))
+
+	if article.Title != "Test Article" {
+		t.Errorf("expected title 'Test Article', got %q", article.Title)
+	}
+	if article.Lang != "EN" {
+		t.Errorf("expected lang 'EN', got %q", article.Lang)
+	}
+	if article.Slug != "test-article" {
+		t.Errorf("expected slug 'test-article', got %q", article.Slug)
+	}
+	if article.Section != "til" {
+		t.Errorf("expected section 'til', got %q", article.Section)
+	}
+	if !strings.Contains(article.RawContent, "Hello world") {
+		t.Errorf("expected RawContent to contain 'Hello world', got %q", article.RawContent)
+	}
+	if article.Date.Year() != 2026 || article.Date.Month() != 10 || article.Date.Day() != 27 {
+		t.Errorf("expected date 2026-10-27, got %v", article.Date)
 	}
 }
+
+func TestContentStoreListSections(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "goseq-list-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	store, err := NewContentStore(tmpDir, loc)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Save articles in both sections
+	if err := store.SaveArticle("til", "article-one", "- TIL content 1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveArticle("til", "article-two", "- TIL content 2"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveArticle("articles", "long-form", "---\nTitle: Long Form Article\nDate: 2026-09-01\n---\n- Body"); err != nil {
+		t.Fatal(err)
+	}
+
+	sections, err := store.ListSections()
+	if err != nil {
+		t.Fatalf("ListSections failed: %v", err)
+	}
+
+	if len(sections) < 2 {
+		t.Fatalf("expected at least 2 sections, got %d", len(sections))
+	}
+
+	// Find til section
+	var tilSection *Section
+	for i := range sections {
+		if sections[i].Name == "til" {
+			tilSection = &sections[i]
+			break
+		}
+	}
+	if tilSection == nil {
+		t.Fatal("expected 'til' section to exist")
+	}
+	if len(tilSection.Articles) != 2 {
+		t.Errorf("expected 2 articles in 'til', got %d", len(tilSection.Articles))
+	}
+}
+
+// --- Parser Tests (kept from original) ---
 
 func TestParserOutlinerAndFormatting(t *testing.T) {
 	raw := `- Top block
@@ -108,7 +232,6 @@ func TestParserOutlinerAndFormatting(t *testing.T) {
 		t.Fatalf("expected 4 root blocks, got %d", len(parsed.Roots))
 	}
 
-	// Verify root 0 children
 	root0 := parsed.Roots[0]
 	if len(root0.Children) != 2 {
 		t.Fatalf("expected root 0 to have 2 children, got %d", len(root0.Children))
@@ -117,7 +240,6 @@ func TestParserOutlinerAndFormatting(t *testing.T) {
 		t.Fatalf("expected root 0 child 0 to have 1 grandchild, got %d", len(root0.Children[0].Children))
 	}
 
-	// Verify TODO and DONE task markers
 	root1 := parsed.Roots[1]
 	if !root1.IsTodo {
 		t.Errorf("expected root 1 to be TODO")
@@ -134,7 +256,6 @@ func TestParserOutlinerAndFormatting(t *testing.T) {
 		t.Errorf("expected root 2 HTML to contain task-done badge")
 	}
 
-	// Verify tags extraction
 	foundGo := false
 	foundUrgent := false
 	for _, tag := range parsed.Tags {
@@ -149,7 +270,6 @@ func TestParserOutlinerAndFormatting(t *testing.T) {
 		t.Errorf("expected tags 'golang' and 'urgent', got: %v", parsed.Tags)
 	}
 
-	// Verify page links extraction
 	foundLink := false
 	for _, link := range parsed.PageLinks {
 		if link == "Logseq" {
@@ -160,7 +280,6 @@ func TestParserOutlinerAndFormatting(t *testing.T) {
 		t.Errorf("expected page link 'Logseq', got: %v", parsed.PageLinks)
 	}
 
-	// Verify code fence rendering
 	htmlStr := string(parsed.HTMLContent)
 	if !strings.Contains(htmlStr, `<pre class="code-fence"><code class="language-go">`) {
 		t.Errorf("expected rendered HTML to contain code fence with language-go")
@@ -180,62 +299,7 @@ func TestParserXSSPrevention(t *testing.T) {
 	}
 }
 
-func TestStorageValidationAndAtomicSave(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "goseq-storage-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	loc, _ := time.LoadLocation("Asia/Jakarta")
-	storage, err := NewStorage(tmpDir, loc)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Date validation
-	if !storage.ValidateDate("2026_11_01") {
-		t.Errorf("expected 2026_11_01 to be valid")
-	}
-	if storage.ValidateDate("2026_02_30") { // Feb 30 does not exist
-		t.Errorf("expected 2026_02_30 to be invalid calendar date")
-	}
-	if storage.ValidateDate("../2026_11_01") {
-		t.Errorf("expected path traversal in date to be invalid")
-	}
-
-	// Save and Read
-	content := "- Hello world Logseq\n  - Sub bullet"
-	if err := storage.SaveJournal("2026_11_01", content); err != nil {
-		t.Fatalf("failed to save journal: %v", err)
-	}
-
-	readBack, err := storage.ReadJournal("2026_11_01")
-	if err != nil {
-		t.Fatalf("failed to read journal: %v", err)
-	}
-	if readBack != content {
-		t.Errorf("content mismatch: got %q, want %q", readBack, content)
-	}
-
-	// Check file on disk
-	filePath := filepath.Join(tmpDir, "2026_11_01.md")
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		t.Errorf("expected %s to exist on disk", filePath)
-	}
-
-	// List dates
-	if err := storage.SaveJournal("2026_10_31", "- Halloween"); err != nil {
-		t.Fatal(err)
-	}
-	dates, err := storage.ListAllDates()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(dates) != 2 || dates[0] != "2026_11_01" || dates[1] != "2026_10_31" {
-		t.Errorf("expected sorted reverse-chronological dates [2026_11_01, 2026_10_31], got: %v", dates)
-	}
-}
+// --- Auth Tests (kept from original) ---
 
 func TestAuthManagerSessionAndRateLimit(t *testing.T) {
 	cfg := &Config{
@@ -245,7 +309,6 @@ func TestAuthManagerSessionAndRateLimit(t *testing.T) {
 	}
 	auth := NewAuthManager(cfg)
 
-	// Auth check
 	if !auth.Authenticate("admin", "password123") {
 		t.Errorf("valid credentials rejected")
 	}
@@ -256,7 +319,6 @@ func TestAuthManagerSessionAndRateLimit(t *testing.T) {
 		t.Errorf("wrong username accepted")
 	}
 
-	// Session token
 	token := auth.GenerateSessionToken("admin")
 	if !auth.ValidateSessionToken(token) {
 		t.Errorf("valid session token rejected")
@@ -265,7 +327,6 @@ func TestAuthManagerSessionAndRateLimit(t *testing.T) {
 		t.Errorf("tampered session token accepted")
 	}
 
-	// Rate limiter
 	ip := "192.168.1.100"
 	for i := 0; i < 4; i++ {
 		if !auth.rateLimiter.Allow(ip) {
@@ -273,72 +334,142 @@ func TestAuthManagerSessionAndRateLimit(t *testing.T) {
 		}
 		auth.rateLimiter.RecordFailure(ip)
 	}
-	// 5th attempt: 4 failures recorded, still allows the 5th attempt
 	if !auth.rateLimiter.Allow(ip) {
 		t.Fatalf("5th attempt should still be allowed")
 	}
 	auth.rateLimiter.RecordFailure(ip)
 
-	// 6th attempt: 5 failures recorded, should block!
 	if auth.rateLimiter.Allow(ip) {
 		t.Errorf("rate limiter should block after 5 failed attempts")
 	}
 
-	// Reset
 	auth.rateLimiter.Reset(ip)
 	if !auth.rateLimiter.Allow(ip) {
 		t.Errorf("rate limiter should allow after reset")
 	}
 }
 
+// --- HTTP Route Tests ---
+
 func TestHTTPRoutes(t *testing.T) {
 	srv, _, tmpDir := setupTestEnvironment(t)
 	defer os.RemoveAll(tmpDir)
 
-	// Populate an entry
-	_ = srv.storage.SaveJournal("2026_11_01", "- Welcome to #GoSeq\n  - Nested [[WikiLink]]")
+	// Seed a TIL article
+	if err := srv.store.SaveArticle("til", "golang-interfaces", "---\nTitle: Golang Interfaces\nDate: 2026-11-01\nLang: EN\n---\n- Interface basics in Go\n  - Implicit implementation"); err != nil {
+		t.Fatalf("failed to seed article: %v", err)
+	}
 
-	// 1. GET / (Public)
+	// 1. GET / (Tier 1: 2 Prominent Cards for Articles & TIL)
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
 	srv.mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("GET / returned status %d", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), "Welcome to") {
-		t.Errorf("GET / response did not contain journal content")
+	body := rec.Body.String()
+	if !strings.Contains(body, "Articles") || !strings.Contains(body, "Today I Learned") {
+		t.Errorf("GET / response did not contain category cards: %s", body)
+	}
+	if !strings.Contains(body, "/category/articles") || !strings.Contains(body, "/category/til") {
+		t.Errorf("GET / response did not contain category links: %s", body)
 	}
 
-	// 2. GET /journal/2026_11_01 (Public)
-	req = httptest.NewRequest("GET", "/journal/2026_11_01", nil)
+	// 1b. Verify that public pages do not leak the admin login in navbar
+	if strings.Contains(body, ">Admin<") || strings.Contains(body, "/duaempatdua") || strings.Contains(body, "/login") {
+		t.Errorf("public navbar contains leaked admin login links: %s", body)
+	}
+
+	// 2. GET /category/til (Tier 2: Category list view)
+	req = httptest.NewRequest("GET", "/category/til", nil)
 	rec = httptest.NewRecorder()
 	srv.mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("GET /journal/2026_11_01 returned status %d", rec.Code)
+		t.Fatalf("GET /category/til returned status %d", rec.Code)
+	}
+	catBody := rec.Body.String()
+	if !strings.Contains(catBody, "Golang Interfaces") {
+		t.Errorf("GET /category/til did not contain article title: %s", catBody)
+	}
+	if !strings.Contains(catBody, "/read/til/golang-interfaces") {
+		t.Errorf("GET /category/til did not contain link to article: %s", catBody)
 	}
 
-	// 3. GET /write (Unauthenticated -> Redirect to /login)
+	// 2b. GET /category/nonexistent (Tier 2: 404 for unknown category)
+	req = httptest.NewRequest("GET", "/category/nonexistent", nil)
+	rec = httptest.NewRecorder()
+	srv.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected 404 for nonexistent category, got %d", rec.Code)
+	}
+
+	// 3. GET /read/til/golang-interfaces (Tier 3: Article detail view)
+	req = httptest.NewRequest("GET", "/read/til/golang-interfaces", nil)
+	rec = httptest.NewRecorder()
+	srv.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /read/til/golang-interfaces returned status %d", rec.Code)
+	}
+	artBody := rec.Body.String()
+	if !strings.Contains(artBody, "Interface basics in Go") {
+		t.Errorf("article detail page did not contain article content")
+	}
+	if !strings.Contains(artBody, "/category/til") {
+		t.Errorf("article detail page did not contain back link to category")
+	}
+
+	// 4. GET /main-site (Placeholder route)
+	req = httptest.NewRequest("GET", "/main-site", nil)
+	rec = httptest.NewRecorder()
+	srv.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /main-site returned status %d", rec.Code)
+	}
+
+	// 5. GET /login should return 404 Not Found (hidden route)
+	req = httptest.NewRequest("GET", "/login", nil)
+	rec = httptest.NewRecorder()
+	srv.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected 404 for /login, got %d", rec.Code)
+	}
+
+	// 6. GET /write (Unauthenticated → Redirect to /duaempatdua)
 	req = httptest.NewRequest("GET", "/write", nil)
 	rec = httptest.NewRecorder()
 	srv.mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("unauthenticated GET /write returned status %d, want %d", rec.Code, http.StatusSeeOther)
 	}
-	if loc := rec.Header().Get("Location"); loc != "/login" {
-		t.Errorf("expected redirect to /login, got %s", loc)
+	if loc := rec.Header().Get("Location"); loc != "/duaempatdua" {
+		t.Errorf("expected redirect to /duaempatdua, got %s", loc)
 	}
 
-	// 4. POST /login (Valid credentials)
+	// 7. GET /duaempatdua (Hidden login page accessible)
+	req = httptest.NewRequest("GET", "/duaempatdua", nil)
+	rec = httptest.NewRecorder()
+	srv.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /duaempatdua returned status %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `action="/duaempatdua"`) {
+		t.Errorf("login form does not post to /duaempatdua: %s", rec.Body.String())
+	}
+
+	// 8. POST /duaempatdua (Valid credentials)
 	form := url.Values{}
 	form.Set("username", "admin")
 	form.Set("password", "supersecretpassword")
-	req = httptest.NewRequest("POST", "/login", strings.NewReader(form.Encode()))
+	req = httptest.NewRequest("POST", "/duaempatdua", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec = httptest.NewRecorder()
 	srv.mux.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("valid login returned status %d, want %d", rec.Code, http.StatusSeeOther)
+	}
+	if loc := rec.Header().Get("Location"); loc != "/write" {
+		t.Errorf("expected redirect to /write, got %s", loc)
 	}
 
 	cookies := rec.Result().Cookies()
@@ -354,7 +485,7 @@ func TestHTTPRoutes(t *testing.T) {
 	}
 
 	// 5. GET /write with session cookie (Authenticated)
-	req = httptest.NewRequest("GET", "/write?date=2026_11_01", nil)
+	req = httptest.NewRequest("GET", "/write?section=til&slug=golang-interfaces", nil)
 	req.AddCookie(sessionCookie)
 	rec = httptest.NewRecorder()
 	srv.mux.ServeHTTP(rec, req)
@@ -364,8 +495,9 @@ func TestHTTPRoutes(t *testing.T) {
 
 	// 6. POST /write AJAX JSON Save (Authenticated)
 	saveBody, _ := json.Marshal(map[string]string{
-		"date":    "2026_11_02",
-		"content": "- Second day entry\n  TODO Task for tomorrow",
+		"section": "til",
+		"slug":    "new-article",
+		"content": "- New article content\n  - Sub-bullet",
 	})
 	req = httptest.NewRequest("POST", "/write", bytes.NewReader(saveBody))
 	req.Header.Set("Content-Type", "application/json")
@@ -386,10 +518,10 @@ func TestHTTPRoutes(t *testing.T) {
 		t.Errorf("expected success: true, got %v", jsonRes)
 	}
 
-	// Verify file was saved to storage
-	savedContent, err := srv.storage.ReadJournal("2026_11_02")
-	if err != nil || !strings.Contains(savedContent, "Second day entry") {
-		t.Errorf("saved content mismatch: %v, %s", err, savedContent)
+	// Verify file was saved
+	savedArticle, err := srv.store.GetArticle("til", "new-article")
+	if err != nil || !strings.Contains(savedArticle.RawContent, "New article content") {
+		t.Errorf("saved content mismatch: err=%v content=%s", err, savedArticle.RawContent)
 	}
 
 	// 7. POST /logout

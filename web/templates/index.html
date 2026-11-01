@@ -1,88 +1,26 @@
 {{define "content"}}
-<div class="search-form">
-  <form action="/" method="GET">
-    <div class="search-box">
-      <span class="search-icon">🔍</span>
-      <input type="text" name="q" value="{{.Query}}" placeholder="Search journals, #tags, or [[links]] (Press '/' to focus)..." class="search-input" autocomplete="off">
-      {{if or .Query .ActiveTag .ActiveLink}}
-        <a href="/" class="clear-filter" title="Clear filter">✕</a>
-      {{end}}
-    </div>
-  </form>
-  {{if or .ActiveTag .ActiveLink .Query}}
-    <div class="search-filter-active">
-      <span>Filtering by:
-        {{if .ActiveTag}}
-          <span class="search-filter-chip">#{{.ActiveTag}}</span>
-        {{else if .ActiveLink}}
-          <span class="search-filter-chip">[[{{.ActiveLink}}]]</span>
-        {{else if .Query}}
-          <span class="search-filter-chip">"{{.Query}}"</span>
-        {{end}}
-      </span>
-      <a href="/" class="clear-filter">Clear filter</a>
-    </div>
-  {{end}}
+<div class="home-hero">
+  <h1 class="home-title">Digital Garden</h1>
+  <p class="home-subtitle">Notes, thoughts, and technical learnings.</p>
 </div>
 
-{{if .Entries}}
-  <div class="journals-list">
-    {{range .Entries}}
-      <article class="journal-card" id="journal-{{.Date}}">
-        <header class="journal-header">
-          <h2 class="journal-title">
-            <a href="/journal/{{.Date}}">{{.DisplayDate}}</a>
-          </h2>
-          <span class="journal-date-tag">{{.Date}}</span>
-        </header>
-
-        <div class="journal-body">
-          {{.HTMLContent}}
-        </div>
-
-        {{if or .Tags .PageLinks}}
-          <footer class="journal-footer">
-            {{range .Tags}}
-              <a href="/?tag={{.}}" class="tag-badge">#{{.}}</a>
-            {{end}}
-            {{range .PageLinks}}
-              <a href="/?link={{.}}" class="wikilink-badge"><span class="wl-brackets">[[</span>{{.}}<span class="wl-brackets">]]</span></a>
-            {{end}}
-          </footer>
-        {{end}}
-      </article>
+<div class="home-cards">
+  {{range .Sections}}
+  <a href="/category/{{.Name}}" class="home-card" id="card-{{.Name}}">
+    <div class="home-card-header">
+      <h2 class="home-card-title">{{.DisplayName}}</h2>
+      {{if eq .Name "til"}}
+        <span class="home-card-badge">TIL</span>
+      {{end}}
+    </div>
+    {{if .Description}}
+      <p class="home-card-desc">{{.Description}}</p>
     {{end}}
-  </div>
-
-  {{if gt .TotalPages 1}}
-    <nav class="pagination" aria-label="Pagination">
-      {{if .HasPrev}}
-        <a href="/?page={{.PrevPage}}{{if .Query}}&q={{.Query}}{{end}}{{if .ActiveTag}}&tag={{.ActiveTag}}{{end}}{{if .ActiveLink}}&link={{.ActiveLink}}{{end}}" class="page-btn">← Newer</a>
-      {{else}}
-        <span class="page-btn disabled">← Newer</span>
-      {{end}}
-
-      <span class="page-info">Page {{.CurrentPage}} of {{.TotalPages}}</span>
-
-      {{if .HasNext}}
-        <a href="/?page={{.NextPage}}{{if .Query}}&q={{.Query}}{{end}}{{if .ActiveTag}}&tag={{.ActiveTag}}{{end}}{{if .ActiveLink}}&link={{.ActiveLink}}{{end}}" class="page-btn">Older →</a>
-      {{else}}
-        <span class="page-btn disabled">Older →</span>
-      {{end}}
-    </nav>
+    <div class="home-card-footer">
+      <span class="home-card-count">{{len .Articles}} {{if eq (len .Articles) 1}}entry{{else}}entries{{end}}</span>
+      <span class="home-card-link">View list &rarr;</span>
+    </div>
+  </a>
   {{end}}
-{{else}}
-  <div class="empty-state">
-    <h3>No Journal Entries Found</h3>
-    {{if or .Query .ActiveTag .ActiveLink}}
-      <p>No entries match the current search criteria.</p>
-      <p style="margin-top:1rem;"><a href="/" class="btn btn-sm">Clear Filter</a></p>
-    {{else}}
-      <p>Your journal repository is empty.</p>
-      {{if .IsAdmin}}
-        <p style="margin-top:1rem;"><a href="/write" class="btn btn-primary">Start Writing</a></p>
-      {{end}}
-    {{end}}
-  </div>
-{{end}}
+</div>
 {{end}}
