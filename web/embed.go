@@ -11,7 +11,6 @@ import (
 //go:embed static/* templates/*
 var FS embed.FS
 
-// funcMap provides custom template functions.
 var funcMap = template.FuncMap{
 	"lower": strings.ToLower,
 }
@@ -26,7 +25,7 @@ type Templates struct {
 }
 
 func NewTemplates() (*Templates, error) {
-	indexTmpl, err := template.New("").Funcs(funcMap).ParseFS(FS, "templates/layout.html", "templates/index.html")
+	indexTmpl, err := template.New("").Funcs(funcMap).ParseFS(FS, "templates/layout.html", "templates/home.html")
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse index template: %w", err)
 	}
@@ -41,7 +40,7 @@ func NewTemplates() (*Templates, error) {
 		return nil, fmt.Errorf("failed to parse article template: %w", err)
 	}
 
-	mainSiteTmpl, err := template.New("").Funcs(funcMap).ParseFS(FS, "templates/layout.html", "templates/main-site.html")
+	mainSiteTmpl, err := template.New("main-site.html").Funcs(funcMap).ParseFS(FS, "templates/main-site.html")
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse main-site template: %w", err)
 	}
@@ -79,7 +78,7 @@ func (t *Templates) RenderArticle(w io.Writer, data any) error {
 }
 
 func (t *Templates) RenderMainSite(w io.Writer, data any) error {
-	return t.mainSiteTmpl.ExecuteTemplate(w, "layout", data)
+	return t.mainSiteTmpl.Execute(w, data)
 }
 
 func (t *Templates) RenderLogin(w io.Writer, data any) error {
