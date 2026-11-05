@@ -1,26 +1,88 @@
 {{define "content"}}
-<div class="home-hero">
-  <h1 class="home-title">Digital Garden</h1>
-  <p class="home-subtitle">Notes, thoughts, and technical learnings.</p>
-</div>
-
-<div class="home-cards">
-  {{range .Sections}}
-  <a href="/category/{{.Name}}" class="home-card" id="card-{{.Name}}">
-    <div class="home-card-header">
-      <h2 class="home-card-title">{{.DisplayName}}</h2>
-      {{if eq .Name "til"}}
-        <span class="home-card-badge">TIL</span>
-      {{end}}
-    </div>
-    {{if .Description}}
-      <p class="home-card-desc">{{.Description}}</p>
+<div class="home-container">
+  <div class="card-grid home-cards">
+    {{range .Sections}}
+    <a href="/category/{{.Name}}" class="card-box home-card" id="card-{{.Name}}" tabindex="0" role="link" aria-label="{{.DisplayName}}">
+      <div class="card-header home-card-header">
+        <h2 class="card-title home-card-title">{{.DisplayName}}</h2>
+      </div>
+      <p class="card-desc home-card-desc">{{.Description}}</p>
+      <div class="card-footer home-card-footer">
+        <span class="card-badge home-card-counter home-card-count">{{len .Articles}} {{if eq (len .Articles) 1}}entry{{else}}entries{{end}} →</span>
+      </div>
+    </a>
     {{end}}
-    <div class="home-card-footer">
-      <span class="home-card-count">{{len .Articles}} {{if eq (len .Articles) 1}}entry{{else}}entries{{end}}</span>
-      <span class="home-card-link">View list &rarr;</span>
+  </div>
+
+  {{if .ActivityHeatmap}}
+  <section class="heatmap-card" aria-label="Activity Contribution Graph">
+    <div class="heatmap-header">
+      <h3 class="heatmap-title">
+        <svg class="heatmap-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M1.5 3A1.5 1.5 0 0 1 3 1.5h10A1.5 1.5 0 0 1 14.5 3v10a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 13V3zm1.5 0v10h10V3H3zM4 5h2v2H4V5zm3 0h2v2H7V5zm3 0h2v2h-2V5zM4 8h2v2H4V8zm3 0h2v2H7V8zm3 0h2v2h-2V8zm-6 3h2v2H4v-2zm3 0h2v2H7v-2z"/>
+        </svg>
+        Activity in the last year
+      </h3>
+      <span class="heatmap-count-badge">{{.ActivityHeatmap.TotalContributions}} {{if eq .ActivityHeatmap.TotalContributions 1}}entry{{else}}entries{{end}}</span>
     </div>
-  </a>
+
+    <div class="heatmap-scroll-container">
+      <div class="heatmap-wrapper">
+        <div class="heatmap-months" aria-hidden="true">
+          {{range .ActivityHeatmap.Months}}
+            <span class="heatmap-month" style="grid-column-start: {{.ColStart}};">{{.Name}}</span>
+          {{end}}
+        </div>
+
+        <div class="heatmap-body">
+          <div class="heatmap-day-labels" aria-hidden="true">
+            <span></span>
+            <span>Mon</span>
+            <span></span>
+            <span>Wed</span>
+            <span></span>
+            <span>Fri</span>
+            <span></span>
+          </div>
+
+          <div class="heatmap-grid" role="grid" aria-label="Contribution Calendar">
+            {{range .ActivityHeatmap.Weeks}}
+              {{range .Days}}
+                {{if .IsFuture}}
+                  <div class="heatmap-cell future" aria-hidden="true"></div>
+                {{else if gt .Count 0}}
+                  <a href="{{.Link}}" class="heatmap-cell level-{{.Level}}" data-date="{{.DateStr}}" data-count="{{.Count}}" data-display="{{.Display}}" data-articles='{{.ArticlesJSON}}' aria-label="{{.Count}} {{if eq .Count 1}}entry{{else}}entries{{end}} on {{.Display}}"></a>
+                {{else}}
+                  <div class="heatmap-cell level-0" data-date="{{.DateStr}}" data-count="0" data-display="{{.Display}}" data-articles="[]" aria-label="No entries on {{.Display}}"></div>
+                {{end}}
+              {{end}}
+            {{end}}
+          </div>
+        </div>
+
+        <div class="heatmap-footer">
+          <span class="heatmap-footer-note">{{.ActivityHeatmap.StartDate}} – {{.ActivityHeatmap.EndDate}}</span>
+          <div class="heatmap-legend" aria-label="Activity Legend">
+            <span class="legend-text">Less</span>
+            <span class="legend-cell level-0" title="0 entries"></span>
+            <span class="legend-cell level-1" title="1 entry"></span>
+            <span class="legend-cell level-2" title="2 entries"></span>
+            <span class="legend-cell level-3" title="3 entries"></span>
+            <span class="legend-cell level-4" title="4+ entries"></span>
+            <span class="legend-text">More</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="heatmapDetails" class="heatmap-details" style="display: none;">
+      <div class="heatmap-details-header">
+        <span class="heatmap-details-title" id="heatmapDetailsTitle"></span>
+        <button type="button" class="heatmap-details-close" id="heatmapDetailsClose" aria-label="Close details">×</button>
+      </div>
+      <ul class="heatmap-details-list" id="heatmapDetailsList"></ul>
+    </div>
+  </section>
   {{end}}
 </div>
 {{end}}
