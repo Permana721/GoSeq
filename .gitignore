@@ -11,6 +11,7 @@ goseq
 # Local Journal Data (optional; keep local notes private)
 journals/
 *.tmp.*
+.air.toml
 
 # OS files
 .DS_Store
