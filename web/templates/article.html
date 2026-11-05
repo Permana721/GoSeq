@@ -11,6 +11,10 @@
     <div class="article-detail-meta">
       <span class="lang-badge lang-{{lower .Article.Lang}}">{{.Article.Lang}}</span>
       <span class="article-date">{{.Article.DateDisplay}}</span>
+      {{if .Article.ReadingTime}}
+        <span class="article-sep">—</span>
+        <span class="article-reading-time">{{.Article.ReadingTime}}</span>
+      {{end}}
       {{if .Article.Category}}
         <span class="article-sep">—</span>
         <span class="article-category">{{.Article.Category}}</span>
@@ -18,7 +22,7 @@
     </div>
   </div>
 
-  <div class="article-body">
+  <div class="article-body{{if or (eq .Section "articles") (eq .Section "til")}} article-prose{{end}}">
     {{.Article.HTMLContent}}
   </div>
 
