@@ -3,56 +3,54 @@ package main
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 	"unicode"
 )
 
-// Article represents a single markdown file in the content directory.
 type Article struct {
-	Slug        string        // filename without .md
-	Section     string        // subfolder name (e.g. "til", "articles")
-	Title       string        // from frontmatter or derived from filename
-	Date        time.Time     // from frontmatter or file modtime
-	DateDisplay string        // formatted: "Oct 27, 2026"
-	Lang        string        // "ID" or "EN" (from frontmatter, default "EN")
-	Category    string        // from frontmatter (optional)
-	RawContent  string        // full file content (after stripping frontmatter)
-	HTMLContent template.HTML // rendered from RawContent using outliner parser
-	Tags        []string      // extracted from content
-	PageLinks   []string      // extracted from content
+	Slug        string
+	Section     string
+	Title       string
+	Date        time.Time
+	DateDisplay string
+	Lang        string
+	Category    string
+	RawContent  string
+	HTMLContent template.HTML
+	Tags        []string
+	PageLinks   []string
+	ReadingTime string
 }
 
-// Section represents a content subdirectory with its articles.
 type Section struct {
-	Name        string     // e.g. "til", "articles"
-	DisplayName string     // e.g. "Today I Learned", "Articles"
-	Description string     // e.g. "Bite-sized notes, daily discoveries, and quick learnings."
-	Articles    []*Article // sorted newest first
+	Name        string
+	DisplayName string
+	Description string
+	Articles    []*Article
 }
 
-// sectionDisplayNames maps subfolder names to human-readable display names.
 var sectionDisplayNames = map[string]string{
 	"til":      "Today I Learned",
 	"articles": "Articles",
 }
 
-// sectionDescriptions provides brief summaries for the category cards.
 var sectionDescriptions = map[string]string{
-	"articles": "Long-form writing, technical deep-dives, and essays.",
-	"til":      "Bite-sized notes, daily discoveries, and quick technical learnings.",
+	"articles": "Thoughts, stories, and knowledge I want to share from my experiences.",
+	"til":      "Short notes on things I learned today and small daily discoveries.",
 }
 
 func sectionDisplayName(name string) string {
 	if dn, ok := sectionDisplayNames[name]; ok {
 		return dn
 	}
-	// Default: title-case the folder name
 	return toTitleCase(strings.ReplaceAll(name, "_", " "))
 }
 
@@ -63,20 +61,17 @@ func sectionDescription(name string) string {
 	return "Explore notes and writings in this section."
 }
 
-// ContentStore manages the content directory.
 type ContentStore struct {
 	dir string
 	loc *time.Location
 }
 
-// NewContentStore creates a ContentStore and ensures required subdirectories exist.
 func NewContentStore(contentDir string, loc *time.Location) (*ContentStore, error) {
 	absDir, err := filepath.Abs(contentDir)
 	if err != nil {
 		return nil, err
 	}
-	// Create base directory and default subdirs
-	for _, sub := range []string{"", "til", "articles"} {
+	for _, sub := range []string{"", "til", "articles", "uploads"} {
 		p := filepath.Join(absDir, sub)
 		if err := os.MkdirAll(p, 0755); err != nil {
 			return nil, fmt.Errorf("failed to create content directory %s: %w", p, err)
@@ -85,12 +80,10 @@ func NewContentStore(contentDir string, loc *time.Location) (*ContentStore, erro
 	return &ContentStore{dir: absDir, loc: loc}, nil
 }
 
-// TodayDate returns today's date in "YYYY_MM_DD" format.
 func (cs *ContentStore) TodayDate() string {
 	return time.Now().In(cs.loc).Format("2006_01_02")
 }
 
-// ListAllSections returns all subfolder names under the content directory.
 func (cs *ContentStore) ListAllSections() ([]string, error) {
 	entries, err := os.ReadDir(cs.dir)
 	if err != nil {
@@ -98,7 +91,7 @@ func (cs *ContentStore) ListAllSections() ([]string, error) {
 	}
 	var sections []string
 	for _, e := range entries {
-		if e.IsDir() {
+		if e.IsDir() && e.Name() != "uploads" && !strings.HasPrefix(e.Name(), ".") {
 			sections = append(sections, e.Name())
 		}
 	}
@@ -106,7 +99,6 @@ func (cs *ContentStore) ListAllSections() ([]string, error) {
 	return sections, nil
 }
 
-// SectionExists reports whether a subdirectory exists under the content directory.
 func (cs *ContentStore) SectionExists(section string) bool {
 	sectionPath, err := cs.safeSectionPath(section)
 	if err != nil {
@@ -116,7 +108,6 @@ func (cs *ContentStore) SectionExists(section string) bool {
 	return err == nil && info.IsDir()
 }
 
-// ListSections returns all sections with their articles loaded (newest first).
 func (cs *ContentStore) ListSections() ([]Section, error) {
 	sectionNames, err := cs.ListAllSections()
 	if err != nil {
@@ -138,7 +129,6 @@ func (cs *ContentStore) ListSections() ([]Section, error) {
 	return sections, nil
 }
 
-// ListArticlesInSection returns all articles in a section sorted newest first.
 func (cs *ContentStore) ListArticlesInSection(section string) ([]*Article, error) {
 	sectionPath, err := cs.safeSectionPath(section)
 	if err != nil {
@@ -166,7 +156,6 @@ func (cs *ContentStore) ListArticlesInSection(section string) ([]*Article, error
 		articles = append(articles, article)
 	}
 
-	// Sort newest first
 	sort.Slice(articles, func(i, j int) bool {
 		return articles[i].Date.After(articles[j].Date)
 	})
@@ -174,7 +163,6 @@ func (cs *ContentStore) ListArticlesInSection(section string) ([]*Article, error
 	return articles, nil
 }
 
-// GetArticle reads and parses a single article file.
 func (cs *ContentStore) GetArticle(section, slug string) (*Article, error) {
 	filePath, err := cs.safeArticlePath(section, slug)
 	if err != nil {
@@ -189,7 +177,6 @@ func (cs *ContentStore) GetArticle(section, slug string) (*Article, error) {
 		return nil, err
 	}
 
-	// Get file modtime for fallback date
 	info, err := os.Stat(filePath)
 	if err != nil {
 		return nil, err
@@ -199,36 +186,58 @@ func (cs *ContentStore) GetArticle(section, slug string) (*Article, error) {
 	raw := string(data)
 	fm, body := parseFrontmatter(raw)
 
-	// Resolve title
 	title := fm["Title"]
 	if title == "" {
-		title = slugToTitle(slug)
+		if outlinerTitle := extractOutlinerTitle(body); outlinerTitle != "" {
+			title = outlinerTitle
+		} else {
+			title = slugToTitle(slug)
+		}
 	}
 
-	// Resolve date
 	var date time.Time
 	if dateStr, ok := fm["Date"]; ok && dateStr != "" {
-		t, err := time.ParseInLocation("2006-01-02", dateStr, cs.loc)
-		if err == nil {
+		if t, ok := parseDateString(dateStr, cs.loc); ok {
 			date = t
 		} else {
 			date = modTime
 		}
+	} else if dateStr := extractOutlinerDate(body); dateStr != "" {
+		if t, ok := parseDateString(dateStr, cs.loc); ok {
+			date = t
+		} else {
+			date = modTime
+		}
+	} else if t, ok := parseSlugDate(slug, cs.loc); ok {
+		date = t
 	} else {
 		date = modTime
 	}
 
-	// Resolve lang
 	lang := fm["Lang"]
+	if lang == "" {
+		lang = extractOutlinerLang(body)
+	}
 	if lang == "" {
 		lang = "EN"
 	}
 	lang = strings.ToUpper(lang)
 
 	category := fm["Category"]
+	if category == "" {
+		category = extractOutlinerCategory(body)
+	}
 
-	// Parse content
-	htmlContent, tags, pageLinks := ParseContent(body)
+	var htmlContent template.HTML
+	var tags, pageLinks []string
+	var readingTime string
+
+	if section == "articles" || section == "til" {
+		htmlContent, tags, pageLinks = ParseArticle(body)
+		readingTime = calculateReadingTime(body)
+	} else {
+		htmlContent, tags, pageLinks = ParseContent(body)
+	}
 
 	return &Article{
 		Slug:        slug,
@@ -242,17 +251,313 @@ func (cs *ContentStore) GetArticle(section, slug string) (*Article, error) {
 		HTMLContent: htmlContent,
 		Tags:        tags,
 		PageLinks:   pageLinks,
+		ReadingTime: readingTime,
 	}, nil
 }
 
-// SaveArticle atomically saves an article's raw content to disk.
+type ActivityHeatmap struct {
+	TotalContributions int
+	StartDate          string
+	EndDate            string
+	Weeks              []HeatmapWeek
+	Months             []HeatmapMonth
+	ActivityCounts     map[string]int
+}
+
+type HeatmapWeek struct {
+	Days []HeatmapDay
+}
+
+type HeatmapDay struct {
+	DateStr      string              `json:"date"`
+	Display      string              `json:"display"`
+	Count        int                 `json:"count"`
+	Level        int                 `json:"level"`
+	IsFuture     bool                `json:"is_future"`
+	Link         string              `json:"link,omitempty"`
+	Articles     []HeatmapArticleRef `json:"articles,omitempty"`
+	ArticlesJSON string              `json:"articles_json,omitempty"`
+}
+
+type HeatmapArticleRef struct {
+	Section string `json:"section"`
+	Slug    string `json:"slug"`
+	Title   string `json:"title"`
+	Link    string `json:"link"`
+}
+
+type HeatmapMonth struct {
+	Name     string
+	ColStart int
+}
+
+func (cs *ContentStore) GetActivityData() (map[string]int, map[string][]HeatmapArticleRef) {
+	counts := make(map[string]int)
+	articlesByDate := make(map[string][]HeatmapArticleRef)
+
+	sections, err := cs.ListAllSections()
+	if err != nil || len(sections) == 0 {
+		sections = []string{"articles", "til"}
+	}
+
+	for _, section := range sections {
+		articles, err := cs.ListArticlesInSection(section)
+		if err != nil {
+			continue
+		}
+		for _, art := range articles {
+			dateStr := art.Date.In(cs.loc).Format("2006-01-02")
+			counts[dateStr]++
+			ref := HeatmapArticleRef{
+				Section: art.Section,
+				Slug:    art.Slug,
+				Title:   art.Title,
+				Link:    fmt.Sprintf("/read/%s/%s", art.Section, art.Slug),
+			}
+			articlesByDate[dateStr] = append(articlesByDate[dateStr], ref)
+		}
+	}
+
+	return counts, articlesByDate
+}
+
+func (cs *ContentStore) BuildHeatmap() *ActivityHeatmap {
+	counts, articlesByDate := cs.GetActivityData()
+
+	now := time.Now().In(cs.loc)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, cs.loc)
+
+	weekday := int(today.Weekday())
+	endSaturday := today.AddDate(0, 0, 6-weekday)
+
+	startDate := endSaturday.AddDate(0, 0, -(53*7 - 1))
+
+	var weeks []HeatmapWeek
+	totalContribs := 0
+	currentDate := startDate
+
+	for w := 0; w < 53; w++ {
+		var week HeatmapWeek
+		for d := 0; d < 7; d++ {
+			dateStr := currentDate.Format("2006-01-02")
+			display := currentDate.Format("Jan 02, 2006")
+			isFuture := currentDate.After(today)
+
+			count := 0
+			level := 0
+			var articles []HeatmapArticleRef
+			articlesJSON := "[]"
+			link := ""
+
+			if !isFuture {
+				count = counts[dateStr]
+				articles = articlesByDate[dateStr]
+				totalContribs += count
+
+				if count >= 4 {
+					level = 4
+				} else if count == 3 {
+					level = 3
+				} else if count == 2 {
+					level = 2
+				} else if count == 1 {
+					level = 1
+				}
+
+				if len(articles) > 0 {
+					link = articles[0].Link
+					if b, err := json.Marshal(articles); err == nil {
+						articlesJSON = string(b)
+					}
+				}
+			}
+
+			week.Days = append(week.Days, HeatmapDay{
+				DateStr:      dateStr,
+				Display:      display,
+				Count:        count,
+				Level:        level,
+				IsFuture:     isFuture,
+				Link:         link,
+				Articles:     articles,
+				ArticlesJSON: articlesJSON,
+			})
+
+			currentDate = currentDate.AddDate(0, 0, 1)
+		}
+		weeks = append(weeks, week)
+	}
+
+	var months []HeatmapMonth
+	lastMonthLabelCol := -10
+	for w := 0; w < len(weeks); w++ {
+		firstOfMonthFound := false
+		var mName string
+		for d := 0; d < 7; d++ {
+			t, err := time.ParseInLocation("2006-01-02", weeks[w].Days[d].DateStr, cs.loc)
+			if err != nil {
+				continue
+			}
+			if t.Day() == 1 || (w == 0 && d == 0) {
+				firstOfMonthFound = true
+				mName = t.Format("Jan")
+				break
+			}
+		}
+		if firstOfMonthFound && (w-lastMonthLabelCol >= 3) {
+			months = append(months, HeatmapMonth{
+				Name:     mName,
+				ColStart: w + 1,
+			})
+			lastMonthLabelCol = w
+		}
+	}
+
+	return &ActivityHeatmap{
+		TotalContributions: totalContribs,
+		StartDate:          startDate.Format("Jan 02, 2006"),
+		EndDate:            today.Format("Jan 02, 2006"),
+		Weeks:              weeks,
+		Months:             months,
+		ActivityCounts:     counts,
+	}
+}
+
+func (cs *ContentStore) ComputeVerifiedDate(section, slug string) time.Time {
+	if article, err := cs.GetArticle(section, slug); err == nil {
+		if !article.Date.IsZero() {
+			return article.Date.In(cs.loc)
+		}
+	}
+
+	if t, ok := parseSlugDate(slug, cs.loc); ok {
+		return t.In(cs.loc)
+	}
+
+	return time.Now().In(cs.loc)
+}
+
+func extractOutlinerTitle(body string) string {
+	lines := strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if outlinerDateRegex.MatchString(trimmed) || outlinerLangRegex.MatchString(trimmed) {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "- # ") || strings.HasPrefix(trimmed, "* # ") {
+			title := strings.TrimSpace(trimmed[4:])
+			if strings.EqualFold(title, "HEADER / TITLE") || title == "" {
+				return ""
+			}
+			return title
+		}
+		if strings.HasPrefix(trimmed, "# ") {
+			title := strings.TrimSpace(trimmed[2:])
+			if strings.EqualFold(title, "HEADER / TITLE") || title == "" {
+				return ""
+			}
+			return title
+		}
+		break
+	}
+	return ""
+}
+
+var outlinerDateRegex = regexp.MustCompile(`(?i)^\s*(?:[-*]\s*)?Date::\s*(.+)$`)
+var outlinerLangRegex = regexp.MustCompile(`(?i)^\s*(?:[-*]\s*)?lang::\s*(.+)$`)
+var outlinerCategoryRegex = regexp.MustCompile(`(?i)^\s*(?:[-*]\s*)?(?:category|topic)::\s*(.+)$`)
+
+func extractOutlinerDate(body string) string {
+	lines := strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n")
+	for _, line := range lines {
+		m := outlinerDateRegex.FindStringSubmatch(line)
+		if len(m) == 2 {
+			return strings.TrimSpace(m[1])
+		}
+	}
+	return ""
+}
+
+func extractOutlinerLang(body string) string {
+	lines := strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n")
+	limit := len(lines)
+	if limit > 20 {
+		limit = 20
+	}
+	for _, line := range lines[:limit] {
+		m := outlinerLangRegex.FindStringSubmatch(line)
+		if len(m) == 2 {
+			return strings.TrimSpace(m[1])
+		}
+	}
+	return ""
+}
+
+func extractOutlinerCategory(body string) string {
+	lines := strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n")
+	limit := len(lines)
+	if limit > 20 {
+		limit = 20
+	}
+	for _, line := range lines[:limit] {
+		m := outlinerCategoryRegex.FindStringSubmatch(line)
+		if len(m) == 2 {
+			return strings.TrimSpace(m[1])
+		}
+	}
+	return ""
+}
+
+func parseDateString(dateStr string, loc *time.Location) (time.Time, bool) {
+	dateStr = strings.TrimSpace(dateStr)
+	dateStr = strings.TrimPrefix(dateStr, "[[")
+	dateStr = strings.TrimSuffix(dateStr, "]]")
+	dateStr = strings.TrimSpace(dateStr)
+
+	formats := []string{
+		"Monday, 02 January 2006",
+		"Monday, 2 January 2006",
+		"2006-01-02",
+		"2006_01_02",
+		"02 January 2006",
+		"2 January 2006",
+		"Jan 02, 2006",
+		"January 02, 2006",
+		"January 2, 2006",
+		"2006-01-02 15:04:05",
+	}
+
+	for _, f := range formats {
+		if t, err := time.ParseInLocation(f, dateStr, loc); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
+}
+
+func parseSlugDate(slug string, loc *time.Location) (time.Time, bool) {
+	slug = strings.TrimSpace(slug)
+	if len(slug) >= 10 {
+		prefix := slug[:10]
+		if t, err := time.ParseInLocation("2006_01_02", prefix, loc); err == nil {
+			return t, true
+		}
+		if t, err := time.ParseInLocation("2006-01-02", prefix, loc); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
+}
+
 func (cs *ContentStore) SaveArticle(section, slug, rawContent string) error {
 	filePath, err := cs.safeArticlePath(section, slug)
 	if err != nil {
 		return err
 	}
 
-	// Normalize CRLF to LF
 	normalized := strings.ReplaceAll(rawContent, "\r\n", "\n")
 
 	randBytes := make([]byte, 8)
@@ -289,7 +594,29 @@ func (cs *ContentStore) SaveArticle(section, slug, rawContent string) error {
 	return nil
 }
 
-// --- Path helpers ---
+func (cs *ContentStore) DeleteArticle(section, slug string) error {
+	filePath, err := cs.safeArticlePath(section, slug)
+	if err != nil {
+		return err
+	}
+
+	info, err := os.Stat(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("article not found: %s/%s", section, slug)
+		}
+		return err
+	}
+	if info.IsDir() {
+		return fmt.Errorf("target is a directory: %s/%s", section, slug)
+	}
+
+	if err := os.Remove(filePath); err != nil {
+		return fmt.Errorf("failed to remove article file: %w", err)
+	}
+
+	return nil
+}
 
 func (cs *ContentStore) safeSectionPath(section string) (string, error) {
 	if strings.ContainsAny(section, "/\\") || strings.Contains(section, "..") || section == "" {
@@ -320,23 +647,16 @@ func (cs *ContentStore) safeArticlePath(section, slug string) (string, error) {
 	return fullPath, nil
 }
 
-// --- Frontmatter parsing ---
-
-// parseFrontmatter splits YAML-like frontmatter from body content.
-// Frontmatter is between the first two "---" delimiters at the top of the file.
-// Returns (fields map, body string).
 func parseFrontmatter(raw string) (map[string]string, string) {
 	normalized := strings.ReplaceAll(raw, "\r\n", "\n")
 	lines := strings.Split(normalized, "\n")
 
 	fields := make(map[string]string)
 
-	// Must start with "---"
 	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
 		return fields, raw
 	}
 
-	// Find the closing "---"
 	closeIdx := -1
 	for i := 1; i < len(lines); i++ {
 		if strings.TrimSpace(lines[i]) == "---" {
@@ -345,11 +665,9 @@ func parseFrontmatter(raw string) (map[string]string, string) {
 		}
 	}
 	if closeIdx == -1 {
-		// No closing delimiter; treat as no frontmatter
 		return fields, raw
 	}
 
-	// Parse fields
 	for i := 1; i < closeIdx; i++ {
 		line := lines[i]
 		idx := strings.IndexByte(line, ':')
@@ -363,15 +681,11 @@ func parseFrontmatter(raw string) (map[string]string, string) {
 		}
 	}
 
-	// Body is everything after the closing "---"
 	body := strings.Join(lines[closeIdx+1:], "\n")
 	body = strings.TrimLeft(body, "\n")
 	return fields, body
 }
 
-// --- Title helpers ---
-
-// slugToTitle converts a slug like "golang_tips" or "belajar-go" to "Golang Tips" / "Belajar Go".
 func slugToTitle(slug string) string {
 	s := strings.ReplaceAll(slug, "_", " ")
 	s = strings.ReplaceAll(s, "-", " ")
