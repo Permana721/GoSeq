@@ -5,20 +5,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light dark">
-  <title>{{if .Title}}{{.Title}} — {{end}}GoSeq</title>
-  <link rel="stylesheet" href="/static/css/style.css">
+  <title>{{if .Title}}{{.Title}} — {{end}}Permana</title>
+  <link rel="icon" type="image/png" href="/static/img/logo.png">
+  <link rel="apple-touch-icon" href="/static/img/logo.png">
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <div class="site-wrapper">
     <header class="site-header">
       <div class="header-container{{if .IsWide}} wide{{end}}">
-        <a href="/" class="brand-link">
-          <span class="brand-icon">G</span>
-          <span>GoSeq</span>
+        <a href="/" class="brand brand-link" style="display: inline-flex; align-items: center; gap: 0.6rem; text-decoration: none;">
+          <span>Permana</span>
         </a>
         <nav class="nav-links">
           <a href="/" class="nav-btn{{if eq .ActiveNav "home"}} active{{end}}">Home</a>
-          <a href="/main-site" class="nav-btn{{if eq .ActiveNav "main-site"}} active{{end}}">Main Site</a>
+          <a href="/main-site" class="nav-btn{{if eq .ActiveNav "main-site"}} active{{end}}">Portofolio</a>
           {{if .IsAdmin}}
             <a href="/write" class="nav-btn{{if eq .ActiveNav "write"}} active{{end}}">Editor</a>
             <form action="/logout" method="POST" style="display:inline;">
@@ -32,7 +33,7 @@
       {{template "content" .}}
     </main>
   </div>
-  <script src="/static/js/app.js"></script>
+  <script src="/static/app.js"></script>
 </body>
 </html>
 {{end}}
