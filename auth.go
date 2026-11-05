@@ -42,7 +42,6 @@ func (rl *RateLimiter) Allow(ip string) bool {
 	now := time.Now()
 	cutoff := now.Add(-RateLimitWindow)
 
-	// Filter attempts in sliding window
 	var recent []time.Time
 	for _, t := range rl.attempts[ip] {
 		if t.After(cutoff) {
