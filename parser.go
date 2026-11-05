@@ -11,16 +11,19 @@ import (
 )
 
 var (
-	tagRegex       = regexp.MustCompile(`(?:^|\s)#([a-zA-Z0-9_\-\/]+)`)
-	tagMultiRegex  = regexp.MustCompile(`(?:^|\s)#\[\[([^\]]+)\]\]`)
-	wikiLinkRegex  = regexp.MustCompile(`\[\[([^\]]+)\]\]`)
-	boldRegex      = regexp.MustCompile(`\*\*([^*]+)\*\*`)
-	italicRegex    = regexp.MustCompile(`\*([^*]+)\*`)
-	strikeRegex    = regexp.MustCompile(`~~([^~]+)~~`)
-	inlineCodeRegex= regexp.MustCompile("`([^`]+)`")
-	imgRegex       = regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
-	linkRegex      = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
-	codeFenceRegex = regexp.MustCompile("(?s)```([a-zA-Z0-9_-]*)\n(.*?)```")
+	tagRegex          = regexp.MustCompile(`(?:^|\s)#([a-zA-Z0-9_\-\/]+)`)
+	tagMultiRegex     = regexp.MustCompile(`(?:^|\s)#\[\[([^\]]+)\]\]`)
+	wikiLinkRegex     = regexp.MustCompile(`\[\[([^\]]+)\]\]`)
+	boldRegex         = regexp.MustCompile(`\*\*([^*]+)\*\*`)
+	italicRegex       = regexp.MustCompile(`\*([^*]+)\*`)
+	strikeRegex       = regexp.MustCompile(`~~([^~]+)~~`)
+	inlineCodeRegex   = regexp.MustCompile("`([^`]+)`")
+	imgRegex          = regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
+	linkRegex         = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
+	codeFenceRegex    = regexp.MustCompile("(?s)```([a-zA-Z0-9_-]*)\n(.*?)```")
+	metadataPropRegex = regexp.MustCompile(`(?i)^\s*(?:[-*]\s*)?(?:lang|category|topic)::\s*(.*)$`)
+	orderedListRegex  = regexp.MustCompile(`^(\d+)\.\s+(.*)$`)
+	hrRegex           = regexp.MustCompile(`^(?:---|\*\*\*|___)\s*$`)
 )
 
 type Block struct {
@@ -43,8 +46,6 @@ type ParsedJournal struct {
 	PageLinks   []string
 }
 
-// ParseContent parses raw markdown content and returns (html, tags, pageLinks).
-// This is the new content-layer entry point; ParseJournal is kept for backward compatibility.
 func ParseContent(raw string) (template.HTML, []string, []string) {
 	pj := ParseJournal("", "", "", raw)
 	return pj.HTMLContent, pj.Tags, pj.PageLinks
@@ -97,7 +98,11 @@ func ParseJournal(dateStr, displayDate, shortDate, rawContent string) *ParsedJou
 			continue
 		}
 
-		// Check if it's a bullet line
+		if metadataPropRegex.MatchString(trimmed) {
+			currentBlock = nil
+			continue
+		}
+
 		leadingSpaces := len(line) - len(strings.TrimLeft(line, " "))
 		lineAfterIndent := line[leadingSpaces:]
 
@@ -110,7 +115,6 @@ func ParseJournal(dateStr, displayDate, shortDate, rawContent string) *ParsedJou
 			}
 			blocks = append(blocks, currentBlock)
 		} else {
-			// Continuation line or unbulleted line
 			if currentBlock != nil {
 				currentBlock.RawText += "\n" + lineAfterIndent
 			} else {
@@ -123,7 +127,6 @@ func ParseJournal(dateStr, displayDate, shortDate, rawContent string) *ParsedJou
 		}
 	}
 
-	// Handle unclosed code fence
 	if inCodeFence && len(codeFenceLines) > 0 {
 		codeFenceLines = append(codeFenceLines, "```")
 		codeBlockStr := strings.Join(codeFenceLines, "\n")
@@ -138,7 +141,6 @@ func ParseJournal(dateStr, displayDate, shortDate, rawContent string) *ParsedJou
 		}
 	}
 
-	// Format blocks HTML & extract metadata
 	tagMap := make(map[string]struct{})
 	linkMap := make(map[string]struct{})
 
@@ -176,7 +178,6 @@ func ParseJournal(dateStr, displayDate, shortDate, rawContent string) *ParsedJou
 func formatBlockHTML(b *Block, tagMap, linkMap map[string]struct{}) {
 	text := b.RawText
 
-	// Extract code blocks first to protect their contents
 	var codeBlocks []string
 	text = codeFenceRegex.ReplaceAllStringFunc(text, func(m string) string {
 		idx := len(codeBlocks)
@@ -197,7 +198,6 @@ func formatBlockHTML(b *Block, tagMap, linkMap map[string]struct{}) {
 		return fmt.Sprintf("___CODE_BLOCK_%d___", idx)
 	})
 
-	// Check TODO / DONE
 	trimmedText := strings.TrimSpace(text)
 	if strings.HasPrefix(trimmedText, "TODO ") || trimmedText == "TODO" {
 		b.IsTodo = true
@@ -209,7 +209,6 @@ func formatBlockHTML(b *Block, tagMap, linkMap map[string]struct{}) {
 		text = strings.TrimSpace(text)
 	}
 
-	// Extract tags & page links before HTML escaping
 	for _, m := range tagMultiRegex.FindAllStringSubmatch(text, -1) {
 		if len(m) >= 2 {
 			tagMap[m[1]] = struct{}{}
@@ -226,11 +225,20 @@ func formatBlockHTML(b *Block, tagMap, linkMap map[string]struct{}) {
 		}
 	}
 
-	// Safely escape the text content
 	escaped := html.EscapeString(text)
 
-	// Format inline elements
-	// Images: ![alt](url)
+	if strings.HasPrefix(escaped, "# ") {
+		escaped = fmt.Sprintf(`<span class="outliner-h1">%s</span>`, strings.TrimPrefix(escaped, "# "))
+	} else if strings.HasPrefix(escaped, "## ") {
+		escaped = fmt.Sprintf(`<span class="outliner-h2">%s</span>`, strings.TrimPrefix(escaped, "## "))
+	} else if strings.HasPrefix(escaped, "### ") {
+		escaped = fmt.Sprintf(`<span class="outliner-h3">%s</span>`, strings.TrimPrefix(escaped, "### "))
+	}
+
+	if strings.HasPrefix(escaped, "Date:: ") {
+		escaped = fmt.Sprintf(`<span class="outliner-prop"><span class="prop-key">Date::</span> <span class="prop-val">%s</span></span>`, strings.TrimPrefix(escaped, "Date:: "))
+	}
+
 	escaped = imgRegex.ReplaceAllStringFunc(escaped, func(m string) string {
 		sub := imgRegex.FindStringSubmatch(m)
 		alt := sub[1]
@@ -241,7 +249,6 @@ func formatBlockHTML(b *Block, tagMap, linkMap map[string]struct{}) {
 		return alt
 	})
 
-	// Markdown links: [text](url)
 	escaped = linkRegex.ReplaceAllStringFunc(escaped, func(m string) string {
 		sub := linkRegex.FindStringSubmatch(m)
 		label := sub[1]
@@ -252,7 +259,6 @@ func formatBlockHTML(b *Block, tagMap, linkMap map[string]struct{}) {
 		return label
 	})
 
-	// Multi-word tags: #[[tag]]
 	escaped = tagMultiRegex.ReplaceAllStringFunc(escaped, func(m string) string {
 		sub := tagMultiRegex.FindStringSubmatch(m)
 		tagName := sub[1]
@@ -260,7 +266,6 @@ func formatBlockHTML(b *Block, tagMap, linkMap map[string]struct{}) {
 		return fmt.Sprintf(` <a href="/?tag=%s" class="tag-badge">#%s</a>`, u, html.EscapeString(tagName))
 	})
 
-	// Single-word tags: #tag
 	escaped = tagRegex.ReplaceAllStringFunc(escaped, func(m string) string {
 		sub := tagRegex.FindStringSubmatch(m)
 		tagName := sub[1]
@@ -268,7 +273,6 @@ func formatBlockHTML(b *Block, tagMap, linkMap map[string]struct{}) {
 		return fmt.Sprintf(` <a href="/?tag=%s" class="tag-badge">#%s</a>`, u, html.EscapeString(tagName))
 	})
 
-	// WikiLinks: [[Page Name]]
 	escaped = wikiLinkRegex.ReplaceAllStringFunc(escaped, func(m string) string {
 		sub := wikiLinkRegex.FindStringSubmatch(m)
 		linkTarget := sub[1]
@@ -276,22 +280,18 @@ func formatBlockHTML(b *Block, tagMap, linkMap map[string]struct{}) {
 		return fmt.Sprintf(`<a href="/?link=%s" class="wikilink-badge"><span class="wl-brackets">[[</span>%s<span class="wl-brackets">]]</span></a>`, u, html.EscapeString(linkTarget))
 	})
 
-	// Bold, italic, strikethrough, inline code
 	escaped = boldRegex.ReplaceAllString(escaped, "<strong>$1</strong>")
 	escaped = italicRegex.ReplaceAllString(escaped, "<em>$1</em>")
 	escaped = strikeRegex.ReplaceAllString(escaped, "<del>$1</del>")
 	escaped = inlineCodeRegex.ReplaceAllString(escaped, "<code>$1</code>")
 
-	// Convert newlines in multiline blocks to <br>
 	escaped = strings.ReplaceAll(escaped, "\n", "<br>")
 
-	// Restore code fences
 	for idx, codeBlockHTML := range codeBlocks {
 		placeholder := fmt.Sprintf("___CODE_BLOCK_%d___", idx)
 		escaped = strings.Replace(escaped, placeholder, codeBlockHTML, 1)
 	}
 
-	// Prepend task badge if present
 	var sb strings.Builder
 	if b.IsTodo {
 		sb.WriteString(`<span class="task-badge task-todo"><span class="task-checkbox"></span>TODO</span> `)
@@ -366,4 +366,336 @@ func renderTreeHTML(roots []*Block) template.HTML {
 	}
 	sb.WriteString(`</ul>`)
 	return template.HTML(sb.String())
+}
+
+func calculateReadingTime(text string) string {
+	words := len(strings.Fields(text))
+	if words == 0 {
+		return "1 min read"
+	}
+	mins := (words + 199) / 200
+	if mins < 1 {
+		mins = 1
+	}
+	return fmt.Sprintf("%d min read", mins)
+}
+
+func formatInlineProse(text string, tagMap, linkMap map[string]struct{}) string {
+	isTodo := false
+	isDone := false
+	trimmed := strings.TrimSpace(text)
+	if strings.HasPrefix(trimmed, "TODO ") || trimmed == "TODO" {
+		isTodo = true
+		text = strings.TrimSpace(strings.TrimPrefix(trimmed, "TODO"))
+	} else if strings.HasPrefix(trimmed, "DONE ") || trimmed == "DONE" {
+		isDone = true
+		text = strings.TrimSpace(strings.TrimPrefix(trimmed, "DONE"))
+	} else if strings.HasPrefix(trimmed, "[ ] ") {
+		isTodo = true
+		text = strings.TrimSpace(strings.TrimPrefix(trimmed, "[ ]"))
+	} else if strings.HasPrefix(trimmed, "[x] ") || strings.HasPrefix(trimmed, "[X] ") {
+		isDone = true
+		text = strings.TrimSpace(strings.TrimPrefix(trimmed, trimmed[:4]))
+	}
+
+	for _, m := range tagMultiRegex.FindAllStringSubmatch(text, -1) {
+		if len(m) >= 2 {
+			tagMap[m[1]] = struct{}{}
+		}
+	}
+	for _, m := range tagRegex.FindAllStringSubmatch(text, -1) {
+		if len(m) >= 2 {
+			tagMap[m[1]] = struct{}{}
+		}
+	}
+	for _, m := range wikiLinkRegex.FindAllStringSubmatch(text, -1) {
+		if len(m) >= 2 {
+			linkMap[m[1]] = struct{}{}
+		}
+	}
+
+	escaped := html.EscapeString(text)
+
+	escaped = imgRegex.ReplaceAllStringFunc(escaped, func(m string) string {
+		sub := imgRegex.FindStringSubmatch(m)
+		alt := sub[1]
+		rawURL := sub[2]
+		if isSafeURL(rawURL) {
+			caption := ""
+			if strings.TrimSpace(alt) != "" {
+				caption = fmt.Sprintf(`<figcaption class="prose-caption">%s</figcaption>`, alt)
+			}
+			return fmt.Sprintf(`<figure class="prose-figure"><img src="%s" alt="%s" class="prose-img" loading="lazy" />%s</figure>`, html.EscapeString(rawURL), alt, caption)
+		}
+		return alt
+	})
+
+	escaped = linkRegex.ReplaceAllStringFunc(escaped, func(m string) string {
+		sub := linkRegex.FindStringSubmatch(m)
+		label := sub[1]
+		rawURL := sub[2]
+		if isSafeURL(rawURL) {
+			return fmt.Sprintf(`<a href="%s" target="_blank" rel="noopener noreferrer" class="ext-link">%s</a>`, html.EscapeString(rawURL), label)
+		}
+		return label
+	})
+
+	escaped = tagMultiRegex.ReplaceAllStringFunc(escaped, func(m string) string {
+		sub := tagMultiRegex.FindStringSubmatch(m)
+		tagName := sub[1]
+		u := url.QueryEscape(tagName)
+		return fmt.Sprintf(` <a href="/?tag=%s" class="tag-badge">#%s</a>`, u, html.EscapeString(tagName))
+	})
+
+	escaped = tagRegex.ReplaceAllStringFunc(escaped, func(m string) string {
+		sub := tagRegex.FindStringSubmatch(m)
+		tagName := sub[1]
+		u := url.QueryEscape(tagName)
+		return fmt.Sprintf(` <a href="/?tag=%s" class="tag-badge">#%s</a>`, u, html.EscapeString(tagName))
+	})
+
+	escaped = wikiLinkRegex.ReplaceAllStringFunc(escaped, func(m string) string {
+		sub := wikiLinkRegex.FindStringSubmatch(m)
+		linkTarget := sub[1]
+		u := url.QueryEscape(linkTarget)
+		return fmt.Sprintf(`<a href="/?link=%s" class="wikilink-badge"><span class="wl-brackets">[[</span>%s<span class="wl-brackets">]]</span></a>`, u, html.EscapeString(linkTarget))
+	})
+
+	escaped = boldRegex.ReplaceAllString(escaped, "<strong>$1</strong>")
+	escaped = italicRegex.ReplaceAllString(escaped, "<em>$1</em>")
+	escaped = strikeRegex.ReplaceAllString(escaped, "<del>$1</del>")
+	escaped = inlineCodeRegex.ReplaceAllString(escaped, "<code>$1</code>")
+
+	var sb strings.Builder
+	if isTodo {
+		sb.WriteString(`<span class="task-badge task-todo"><span class="task-checkbox"></span>TODO</span> `)
+	} else if isDone {
+		sb.WriteString(`<span class="task-badge task-done"><span class="task-checkbox checked">✓</span>DONE</span> `)
+	}
+	sb.WriteString(escaped)
+
+	return sb.String()
+}
+
+func ParseArticle(rawContent string) (template.HTML, []string, []string) {
+	lines := strings.Split(strings.ReplaceAll(rawContent, "\r\n", "\n"), "\n")
+
+	tagMap := make(map[string]struct{})
+	linkMap := make(map[string]struct{})
+
+	var sb strings.Builder
+
+	inCodeFence := false
+	var codeFenceLines []string
+	var codeFenceLang string
+
+	var paragraphLines []string
+	var quoteLines []string
+	var listItems []string
+	inList := false
+	isOrderedList := false
+
+	flushParagraph := func() {
+		if len(paragraphLines) == 0 {
+			return
+		}
+		joined := strings.Join(paragraphLines, " ")
+		formatted := formatInlineProse(joined, tagMap, linkMap)
+		trimmedFormatted := strings.TrimSpace(formatted)
+		if strings.HasPrefix(trimmedFormatted, "<figure") && strings.HasSuffix(trimmedFormatted, "</figure>") {
+			sb.WriteString(trimmedFormatted)
+			sb.WriteString("\n")
+		} else if trimmedFormatted != "" {
+			sb.WriteString(`<p class="prose-p">`)
+			sb.WriteString(trimmedFormatted)
+			sb.WriteString("</p>\n")
+		}
+		paragraphLines = nil
+	}
+
+	flushList := func() {
+		if len(listItems) == 0 {
+			inList = false
+			return
+		}
+		if isOrderedList {
+			sb.WriteString("<ol class=\"prose-ol\">\n")
+		} else {
+			sb.WriteString("<ul class=\"prose-ul\">\n")
+		}
+		for _, item := range listItems {
+			formatted := formatInlineProse(item, tagMap, linkMap)
+			sb.WriteString("  <li>")
+			sb.WriteString(formatted)
+			sb.WriteString("</li>\n")
+		}
+		if isOrderedList {
+			sb.WriteString("</ol>\n")
+		} else {
+			sb.WriteString("</ul>\n")
+		}
+		listItems = nil
+		inList = false
+		isOrderedList = false
+	}
+
+	flushQuote := func() {
+		if len(quoteLines) == 0 {
+			return
+		}
+		sb.WriteString("<blockquote class=\"prose-quote\">\n")
+		for _, ql := range quoteLines {
+			formatted := formatInlineProse(ql, tagMap, linkMap)
+			sb.WriteString("  <p>")
+			sb.WriteString(formatted)
+			sb.WriteString("</p>\n")
+		}
+		sb.WriteString("</blockquote>\n")
+		quoteLines = nil
+	}
+
+	flushAll := func() {
+		flushParagraph()
+		flushList()
+		flushQuote()
+	}
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		if inCodeFence {
+			if strings.HasPrefix(trimmed, "```") {
+				inCodeFence = false
+				codeBody := strings.Join(codeFenceLines, "\n")
+				langClass := ""
+				if codeFenceLang != "" {
+					langClass = fmt.Sprintf(` class="language-%s"`, html.EscapeString(codeFenceLang))
+				}
+				sb.WriteString(fmt.Sprintf(`<div class="code-block-wrapper"><pre class="code-fence"><code%s>%s</code></pre><button type="button" class="copy-code-btn" aria-label="Copy code to clipboard">Copy</button></div>`+"\n", langClass, html.EscapeString(codeBody)))
+				codeFenceLines = nil
+				codeFenceLang = ""
+				continue
+			}
+			codeFenceLines = append(codeFenceLines, line)
+			continue
+		}
+
+		if strings.HasPrefix(trimmed, "```") {
+			flushAll()
+			inCodeFence = true
+			codeFenceLang = strings.TrimSpace(strings.TrimPrefix(trimmed, "```"))
+			codeFenceLines = nil
+			continue
+		}
+
+		if metadataPropRegex.MatchString(trimmed) {
+			continue
+		}
+
+		if trimmed == "" {
+			flushAll()
+			continue
+		}
+
+		if hrRegex.MatchString(trimmed) {
+			flushAll()
+			sb.WriteString("<hr class=\"prose-hr\" />\n")
+			continue
+		}
+
+		if strings.HasPrefix(trimmed, "#### ") {
+			flushAll()
+			headingText := strings.TrimPrefix(trimmed, "#### ")
+			sb.WriteString(fmt.Sprintf(`<h4 class="prose-h4">%s</h4>`+"\n", formatInlineProse(headingText, tagMap, linkMap)))
+			continue
+		} else if strings.HasPrefix(trimmed, "### ") {
+			flushAll()
+			headingText := strings.TrimPrefix(trimmed, "### ")
+			sb.WriteString(fmt.Sprintf(`<h3 class="prose-h3">%s</h3>`+"\n", formatInlineProse(headingText, tagMap, linkMap)))
+			continue
+		} else if strings.HasPrefix(trimmed, "## ") {
+			flushAll()
+			headingText := strings.TrimPrefix(trimmed, "## ")
+			sb.WriteString(fmt.Sprintf(`<h2 class="prose-h2">%s</h2>`+"\n", formatInlineProse(headingText, tagMap, linkMap)))
+			continue
+		} else if strings.HasPrefix(trimmed, "# ") {
+			flushAll()
+			headingText := strings.TrimPrefix(trimmed, "# ")
+			sb.WriteString(fmt.Sprintf(`<h2 class="prose-h2">%s</h2>`+"\n", formatInlineProse(headingText, tagMap, linkMap)))
+			continue
+		}
+
+		if strings.HasPrefix(trimmed, ">") {
+			flushParagraph()
+			flushList()
+			quoteLine := strings.TrimPrefix(trimmed, ">")
+			quoteLine = strings.TrimPrefix(quoteLine, " ")
+			quoteLines = append(quoteLines, quoteLine)
+			continue
+		}
+
+		if m := orderedListRegex.FindStringSubmatch(trimmed); len(m) >= 3 {
+			flushParagraph()
+			flushQuote()
+			if inList && !isOrderedList {
+				flushList()
+			}
+			inList = true
+			isOrderedList = true
+			listItems = append(listItems, m[2])
+			continue
+		}
+
+		leadingSpaces := len(line) - len(strings.TrimLeft(line, " "))
+		lineAfterIndent := line[leadingSpaces:]
+		if strings.HasPrefix(lineAfterIndent, "- ") || strings.HasPrefix(lineAfterIndent, "* ") {
+			flushParagraph()
+			flushQuote()
+			if inList && isOrderedList {
+				flushList()
+			}
+			inList = true
+			isOrderedList = false
+			itemText := strings.TrimSpace(lineAfterIndent[2:])
+			listItems = append(listItems, itemText)
+			continue
+		}
+
+		if imgRegex.MatchString(trimmed) && strings.HasPrefix(trimmed, "![") && strings.HasSuffix(trimmed, ")") {
+			flushAll()
+			formattedImg := formatInlineProse(trimmed, tagMap, linkMap)
+			sb.WriteString(formattedImg)
+			sb.WriteString("\n")
+			continue
+		}
+
+		flushList()
+		flushQuote()
+		paragraphLines = append(paragraphLines, trimmed)
+	}
+
+	if inCodeFence {
+		codeBody := strings.Join(codeFenceLines, "\n")
+		langClass := ""
+		if codeFenceLang != "" {
+			langClass = fmt.Sprintf(` class="language-%s"`, html.EscapeString(codeFenceLang))
+		}
+		sb.WriteString(fmt.Sprintf(`<div class="code-block-wrapper"><pre class="code-fence"><code%s>%s</code></pre><button type="button" class="copy-code-btn" aria-label="Copy code to clipboard">Copy</button></div>`+"\n", langClass, html.EscapeString(codeBody)))
+	}
+
+	flushAll()
+
+	var tags []string
+	for t := range tagMap {
+		tags = append(tags, t)
+	}
+	sort.Strings(tags)
+
+	var pageLinks []string
+	for l := range linkMap {
+		pageLinks = append(pageLinks, l)
+	}
+	sort.Strings(pageLinks)
+
+	return template.HTML(sb.String()), tags, pageLinks
 }
