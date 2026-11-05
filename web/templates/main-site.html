@@ -1,7 +1,306 @@
-{{define "content"}}
-<div class="placeholder-page">
-  <h1>Main Site</h1>
-  <p>This page is reserved for future expansion.</p>
-  <a href="/" class="btn">← Back to Home</a>
-</div>
-{{end}}
+<!DOCTYPE html>
+<html lang="en" class="dark scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Permana Surya Dharma - Backend Developer specializing in enterprise-grade monolithic systems using Java, Spring Boot, PostgreSQL, Redis, Jenkins, and Docker.">
+    <title>Permana Surya Dharma</title>
+    <link rel="icon" href="../static/img/icon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/3.5.0/remixicon.css">
+
+    <script src="../static/js/tailwindcss.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        canvas: '#010102',
+                        'surface-1': '#0F1011',
+                        'surface-2': '#141516',
+                        'surface-3': '#18191A',
+                        hairline: '#23252A',
+                        accent: '#6DB33F',
+                        headline: '#F7F8F8',
+                        muted: '#8A8F98',
+                        tertiary: '#A1A7AF',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #010102;
+            color: #8A8F98;
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-canvas text-muted antialiased selection:bg-accent selection:text-white">
+
+    <header class="sticky top-0 z-50 h-14 border-b border-hairline bg-canvas/80 backdrop-blur-md">
+        <div class="max-w-5xl mx-auto px-4 h-full flex items-center justify-between">
+            <a href="#" class="font-mono text-sm font-semibold tracking-tight text-headline hover:text-accent transition-colors">
+                permana<span class="text-accent">.dev</span>
+            </a>
+
+            <button id="menu-btn" class="lg:hidden text-headline text-xl focus:outline-none p-1 w-7 h-7 flex items-center justify-center" aria-label="Toggle navigation menu">
+                <i class="ri-menu-line inline-block w-5 h-5 leading-none" id="menu-icon"></i>
+            </button>
+
+            <nav id="nav-menu" class="hidden lg:flex items-center space-x-6 text-xs font-medium max-lg:absolute max-lg:top-14 max-lg:left-0 max-lg:w-full max-lg:bg-canvas/95 max-lg:border-b max-lg:border-hairline max-lg:p-4 max-lg:flex-col max-lg:space-x-0 max-lg:space-y-4 max-lg:backdrop-blur-md">
+                <a href="#about" class="nav-link text-muted hover:text-headline transition-colors">About</a>
+                <a href="#projects" class="nav-link text-muted hover:text-headline transition-colors">Projects</a>
+                <a href="#experience" class="nav-link text-muted hover:text-headline transition-colors">Experience</a>
+                <a href="#contact" class="nav-link text-muted hover:text-headline transition-colors">Contact</a>
+                <a href="/" class="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-hairline bg-surface-1 text-headline hover:bg-surface-2 hover:border-accent/40 hover:text-accent transition-colors">
+                    <i class="ri-arrow-left-line text-xs"></i>
+                    <span>Back to Journal</span>
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-4 py-16 space-y-24">
+
+        <section class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center pt-8">
+            <div class="md:col-span-7 space-y-4">
+                <h1 class="text-3xl md:text-5xl font-bold tracking-[-0.03em] text-headline leading-tight">
+                    Permana Surya Dharma
+                </h1>
+
+                <p class="text-base text-muted leading-relaxed max-w-xl">
+                    Backend Developer specializing in enterprise-grade monolithic systems, building scalable, secure, and resilient backend architectures using <span class="text-headline font-medium">Java, Spring Boot, PostgreSQL, Redis, Jenkins</span>, and <span class="text-headline font-medium">Docker</span>.
+                </p>
+
+                <div class="flex items-center space-x-4 pt-1">
+                    <a href="#contact" class="px-4 py-2 rounded-lg bg-accent text-canvas font-medium text-xs hover:bg-accent/90 transition-colors inline-flex items-center space-x-2">
+                        <span>Get in Touch</span>
+                        <i class="ri-arrow-right-line"></i>
+                    </a>
+                    <a href="assets/pdf/NaskahPAI.docx" download class="px-4 py-2 rounded-lg border border-hairline bg-surface-1 text-headline font-medium text-xs hover:bg-surface-2 transition-colors inline-flex items-center space-x-2">
+                        <i class="ri-file-download-line"></i>
+                        <span>Resume</span>
+                    </a>
+                </div>
+
+                <div class="flex items-center space-x-4 pt-1 text-tertiary">
+                    <a href="https://github.com/Permana721" target="_blank" class="w-7 h-7 inline-flex items-center justify-center hover:text-headline transition-colors text-lg" aria-label="GitHub Profile">
+                        <i class="ri-github-fill"></i>
+                    </a>
+                    <a href="https://www.linkedin.com/in/arido-undefined-a98093316/" target="_blank" class="w-7 h-7 inline-flex items-center justify-center hover:text-headline transition-colors text-lg" aria-label="LinkedIn Profile">
+                        <i class="ri-linkedin-box-fill"></i>
+                    </a>
+                    <a href="https://www.instagram.com/permana0772/" target="_blank" class="w-7 h-7 inline-flex items-center justify-center hover:text-headline transition-colors text-lg" aria-label="Instagram Profile">
+                        <i class="ri-instagram-fill"></i>
+                    </a>
+                    <a href="https://www.facebook.com/permana.s.dharma" target="_blank" class="w-7 h-7 inline-flex items-center justify-center hover:text-headline transition-colors text-lg" aria-label="Facebook Profile">
+                        <i class="ri-facebook-box-fill"></i>
+                    </a>
+                </div>
+            </div>
+
+            <div class="md:col-span-5 min-h-[220px]">
+                <div class="rounded-xl border border-hairline bg-surface-1 overflow-hidden font-mono text-xs shadow-2xl h-full">
+                    <div class="px-4 py-3 border-b border-hairline bg-surface-2 flex items-center justify-between">
+                        <div class="flex space-x-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full bg-[#FF5F56]/80"></span>
+                            <span class="w-2.5 h-2.5 rounded-full bg-[#FFBD2E]/80"></span>
+                            <span class="w-2.5 h-2.5 rounded-full bg-[#27C93F]/80"></span>
+                        </div>
+                        <span class="text-tertiary text-[11px]">permana@dev:~</span>
+                    </div>
+                    <div class="p-4 space-y-2 text-tertiary overflow-x-auto">
+                        <div><span class="text-accent">@RestController</span></div>
+                        <div><span class="text-accent">public class</span> <span class="text-headline">DeveloperController</span> {</div>
+                        <div class="pl-4"><span class="text-accent">private String</span> name = <span class="text-emerald-400">"Permana Surya Dharma"</span>;</div>
+                        <div class="pl-4"><span class="text-accent">private String</span> role = <span class="text-emerald-400">"Backend Developer"</span>;</div>
+                        <div class="pl-4"><span class="text-accent">private List<String></span> stack = List.of(<span class="text-emerald-400">"Java"</span>, <span class="text-emerald-400">"Spring Boot"</span>, <span class="text-emerald-400">"PostgreSQL"</span>, <span class="text-emerald-400">"Redis"</span>, <span class="text-emerald-400">"Jenkins"</span>, <span class="text-emerald-400">"Docker"</span>);</div>
+                        <div class="pl-4"><span class="text-accent">private String</span> location = <span class="text-emerald-400">"Bandung, ID"</span>;</div>
+                        <div>}</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="about" class="space-y-6 pt-6 border-t border-hairline">
+            <div class="flex items-center space-x-3">
+                <span class="text-xs font-mono tracking-wide text-accent uppercase">01 // About</span>
+                <div class="h-px bg-hairline flex-1"></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-8">
+                <div class="md:col-span-6 space-y-4">
+                    <h2 class="text-2xl font-semibold text-headline tracking-[-0.02em]">
+                        Enterprise systems engineered for scale & resilience.
+                    </h2>
+                    <p class="text-sm leading-[1.7] text-muted">
+                        I am a passionate software developer focused on architecting and managing enterprise-grade monolithic backend systems. Specialized in building highly scalable, secure, and resilient applications using Java and Spring Boot, integrated with modern CI/CD pipelines and high-performance data stores.
+                    </p>
+                </div>
+
+                <div class="md:col-span-6 grid grid-cols-2 gap-4">
+                    <div class="p-4 rounded-xl border border-hairline bg-surface-1 space-y-1">
+                        <div class="text-xs font-mono text-tertiary uppercase">Focus</div>
+                        <div class="text-sm font-semibold text-headline">Backend & APIs</div>
+                    </div>
+                    <div class="p-4 rounded-xl border border-hairline bg-surface-1 space-y-1">
+                        <div class="text-xs font-mono text-tertiary uppercase">Database</div>
+                        <div class="text-sm font-semibold text-headline">Postgres & Redis</div>
+                    </div>
+                    <div class="p-4 rounded-xl border border-hairline bg-surface-1 space-y-1">
+                        <div class="text-xs font-mono text-tertiary uppercase">Framework</div>
+                        <div class="text-sm font-semibold text-headline">Spring & Boot</div>
+                    </div>
+                    <div class="p-4 rounded-xl border border-hairline bg-surface-1 space-y-1">
+                        <div class="text-xs font-mono text-tertiary uppercase">OS</div>
+                        <div class="text-sm font-semibold text-headline">Linux & Windows</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="projects" class="space-y-6 pt-6 border-t border-hairline">
+            <div class="flex items-center space-x-3">
+                <span class="text-xs font-mono tracking-wide text-accent uppercase">02 // Featured Projects</span>
+                <div class="h-px bg-hairline flex-1"></div>
+            </div>
+
+            <div class="p-8 rounded-xl border border-hairline bg-surface-1 text-center space-y-3">
+                <div class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-surface-2 text-accent mb-1">
+                    <i class="ri-code-s-slash-line text-lg"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-headline tracking-tight">Coming Soon</h3>
+                <p class="text-xs text-muted leading-relaxed max-w-md mx-auto">New projects are currently under development and will be showcased here shortly.</p>
+            </div>
+        </section>
+
+        <section id="experience" class="space-y-6 pt-6 border-t border-hairline">
+            <div class="flex items-center space-x-3">
+                <span class="text-xs font-mono tracking-wide text-accent uppercase">03 // Experience</span>
+                <div class="h-px bg-hairline flex-1"></div>
+            </div>
+
+            <div class="space-y-4">
+                <div class="p-5 rounded-xl border border-hairline bg-surface-1 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div class="space-y-1">
+                        <div class="text-sm font-semibold text-headline">Web Developer Intern</div>
+                        <div class="text-xs text-muted">Yogya Center</div>
+                        <p class="text-xs text-tertiary pt-1 max-w-xl">Engineered admin dashboard leveraging Laravel & PostgreSQL with server-side processing optimizations.</p>
+                    </div>
+                    <div class="text-xs font-mono text-accent">2024</div>
+                </div>
+
+                <div class="p-5 rounded-xl border border-hairline bg-surface-1 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div class="space-y-1">
+                        <div class="text-sm font-semibold text-headline">IT Support Intern</div>
+                        <div class="text-xs text-muted">Yogya Kepatihan</div>
+                        <p class="text-xs text-tertiary pt-1 max-w-xl">Maintained Linux/Windows system infrastructures and resolved network hardware cabling diagnostics.</p>
+                    </div>
+                    <div class="text-xs font-mono text-accent">2024</div>
+                </div>
+
+                <div class="p-5 rounded-xl border border-hairline bg-surface-1 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div class="space-y-1">
+                        <div class="text-sm font-semibold text-headline">Software Engineering</div>
+                        <div class="text-xs text-muted">Vocational High School</div>
+                        <p class="text-xs text-tertiary pt-1 max-w-xl">Specialized curriculum in software design patterns, backend algorithms, and database systems.</p>
+                    </div>
+                    <div class="text-xs font-mono text-accent">2025</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="contact" class="space-y-6 pt-6 border-t border-hairline">
+            <div class="flex items-center space-x-3">
+                <span class="text-xs font-mono tracking-wide text-accent uppercase">04 // Contact</span>
+                <div class="h-px bg-hairline flex-1"></div>
+            </div>
+
+            <div class="p-8 rounded-xl border border-hairline bg-surface-1 space-y-6">
+                <div class="space-y-2">
+                    <h2 class="text-2xl font-bold text-headline tracking-tight">Let's build something together</h2>
+                    <p class="text-sm text-muted">Have a project in mind or an engineering role open? Reach out directly.</p>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-4 pt-2">
+                    <a href="mailto:sdharma721@gmail.com" class="px-4 py-2.5 rounded-lg bg-accent text-canvas font-medium text-xs hover:bg-accent/90 transition-colors inline-flex items-center space-x-2">
+                        <i class="ri-mail-send-line"></i>
+                        <span>Email Me</span>
+                    </a>
+
+                    <a href="https://github.com/Permana721" target="_blank" class="px-4 py-2.5 rounded-lg border border-hairline bg-canvas text-headline font-medium text-xs hover:bg-surface-2 transition-colors inline-flex items-center space-x-2">
+                        <i class="ri-github-line"></i>
+                        <span>GitHub Profile</span>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="border-t border-hairline bg-canvas py-8">
+        <div class="max-w-5xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between text-xs text-tertiary gap-4">
+            <div>&copy; <span id="year"></span> Permana Surya Dharma. All rights reserved.</div>
+        </div>
+    </footer>
+
+    <script>
+        document.getElementById('year').textContent = new Date().getFullYear();
+
+        const menuBtn = document.getElementById('menu-btn');
+        const navMenu = document.getElementById('nav-menu');
+        const menuIcon = document.getElementById('menu-icon');
+        const navLinks = document.querySelectorAll('.nav-link');
+        const sections = document.querySelectorAll('section[id]');
+
+        menuBtn.addEventListener('click', () => {
+            navMenu.classList.toggle('hidden');
+            navMenu.classList.toggle('flex');
+            if (navMenu.classList.contains('hidden')) {
+                menuIcon.classList.replace('ri-close-line', 'ri-menu-line');
+            } else {
+                menuIcon.classList.replace('ri-menu-line', 'ri-close-line');
+            }
+        });
+
+        navLinks.forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth < 1280) {
+                    navMenu.classList.add('hidden');
+                    navMenu.classList.remove('flex');
+                    menuIcon.classList.replace('ri-close-line', 'ri-menu-line');
+                }
+            });
+        });
+
+        window.addEventListener('scroll', () => {
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop - 100;
+                if (window.scrollY >= sectionTop) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.classList.remove('text-accent', 'font-semibold');
+                link.classList.add('text-muted');
+                if (link.getAttribute('href') === `#${current}`) {
+                    link.classList.remove('text-muted');
+                    link.classList.add('text-accent', 'font-semibold');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
