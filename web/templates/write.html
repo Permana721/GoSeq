@@ -1,6 +1,5 @@
 {{define "content"}}
 <div class="editor-container">
-  <!-- Local Draft Alert Banner -->
   <div id="draftAlert" class="draft-alert-banner" style="display: none;">
     <div>
       <strong>Unsaved local draft found<span id="draftTimeInfo"></span>.</strong>
@@ -12,8 +11,7 @@
     </div>
   </div>
 
-  <!-- Editor Toolbar -->
-  <div class="editor-toolbar">
+  <div class="editor-top-bar">
     <div class="editor-controls-left">
       <div class="date-selector-group">
         <label for="sectionInput" style="font-size:0.85rem;color:var(--text-muted);font-weight:500;">Section:</label>
@@ -28,18 +26,26 @@
         {{end}}
         <label for="slugInput" style="font-size:0.85rem;color:var(--text-muted);font-weight:500;margin-left:0.5rem;">Slug:</label>
         <input type="text" id="slugInput" class="date-input" value="{{.Slug}}" placeholder="article-slug" style="max-width: 160px;">
-        {{if .AvailableArticles}}
-          <select id="articleDropdown" class="date-input" onchange="if(this.value) window.location.href='/write?section={{.Section}}&slug='+this.value;" style="max-width: 160px;">
-            <option value="">Jump to article...</option>
-            {{range .AvailableArticles}}
-              <option value="{{.}}"{{if eq . $.Slug}} selected{{end}}>{{.}}</option>
-            {{end}}
-          </select>
-        {{end}}
+        <select id="articleDropdown" class="date-input" onchange="if(this.value) window.location.href='/write?section={{.Section}}&slug='+this.value;" style="max-width: 160px;">
+          <option value="">Jump to article...</option>
+          {{range .AvailableArticles}}
+            <option value="{{.}}"{{if eq . $.Slug}} selected{{end}}>{{.}}</option>
+          {{end}}
+        </select>
+        <button type="button" id="newEntryBtn" class="btn btn-sm btn-new" title="Create a new entry in this section">+ New</button>
       </div>
-      {{if and .Section .Slug}}
-        <a href="/read/{{.Section}}/{{.Slug}}" target="_blank" class="nav-btn" title="View Public Page">View ↗</a>
-      {{end}}
+      <div class="lang-select-group">
+        <label for="langSelect" style="font-size:0.85rem;color:var(--text-muted);font-weight:500;">Lang:</label>
+        <select id="langSelect" class="date-input lang-select" title="Article Language">
+          <option value="EN"{{if eq .Lang "EN"}} selected{{end}}>EN</option>
+          <option value="ID"{{if eq .Lang "ID"}} selected{{end}}>ID</option>
+        </select>
+      </div>
+      <div class="category-input-group">
+        <label for="categoryInput" style="font-size:0.85rem;color:var(--text-muted);font-weight:500;">Topic:</label>
+        <input type="text" id="categoryInput" class="date-input category-input" value="{{.Category}}" placeholder="Topic / Category (e.g. Rekayasa Perangkat Lunak)" style="max-width: 240px;">
+      </div>
+      <a href="/read/{{.Section}}/{{.Slug}}" id="viewPublicLink" target="_blank" class="nav-btn" title="View Public Page"{{if not (and .Section .Slug)}} style="display:none;"{{end}}>View ↗</a>
     </div>
 
     <div class="editor-controls-right">
@@ -52,22 +58,55 @@
       <span id="statusIndicator" class="status-indicator">Up to date</span>
 
       <button type="button" id="copyBtn" class="btn btn-sm" title="Copy raw Markdown to clipboard">Copy Markdown</button>
+      <button type="button" id="deleteBtn" class="btn btn-sm btn-delete" title="Delete this entry">Delete</button>
       <button type="button" id="saveBtn" class="btn btn-sm btn-primary" title="Save to disk (Ctrl+S / Cmd+S)">Save</button>
     </div>
   </div>
 
-  <!-- Editor Workspace -->
   <form id="writeForm" action="/write" method="POST">
     <input type="hidden" id="sectionHidden" name="section" value="{{.Section}}">
     <input type="hidden" id="slugHidden" name="slug" value="{{.Slug}}">
 
     <div id="editorWorkspace" class="editor-workspace mode-edit">
       <div id="editorPane" class="editor-pane">
-        <textarea id="editorTextarea" name="content" class="editor-textarea" placeholder="- Start writing..." autofocus spellcheck="false">{{.Content}}</textarea>
+        <div class="editor-box">
+          <div class="editor-toolbar" id="formatToolbar" role="toolbar" aria-label="Markdown Formatting">
+            <div class="toolbar-group">
+              <button type="button" class="toolbar-btn" data-action="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+              <button type="button" class="toolbar-btn" data-action="italic" title="Italic (Ctrl+I)"><i>I</i></button>
+              <button type="button" class="toolbar-btn" data-action="code" title="Inline Code"><code>&lt;/&gt;</code></button>
+              <button type="button" class="toolbar-btn" data-action="codeblock" title="Code Block"><span class="btn-icon">```</span></button>
+              <button type="button" class="toolbar-btn" data-action="wikilink" title="WikiLink (Ctrl+K)"><span class="btn-icon">[[ ]]</span></button>
+              <button type="button" class="toolbar-btn" data-action="tag" title="Tag">#</button>
+              <button type="button" class="toolbar-btn" data-action="image" id="imageUploadBtn" title="Upload Image (WebP Compressed)"><span class="btn-icon">🖼️</span></button>
+            </div>
+            <div class="toolbar-divider"></div>
+            <div class="toolbar-group">
+              <button type="button" class="toolbar-btn" data-action="todo" title="Toggle TODO"><span class="badge-todo-btn">TODO</span></button>
+              <button type="button" class="toolbar-btn" data-action="done" title="Toggle DONE"><span class="badge-done-btn">DONE</span></button>
+            </div>
+            <div class="toolbar-divider"></div>
+            <div class="toolbar-group">
+              <button type="button" class="toolbar-btn" data-action="indent" title="Indent (Tab)">⇥</button>
+              <button type="button" class="toolbar-btn" data-action="outdent" title="Outdent (Shift+Tab)">⇤</button>
+            </div>
+            <div class="toolbar-spacer"></div>
+            <div class="toolbar-group">
+              <button type="button" class="toolbar-btn lang-toggle-btn{{if eq .Lang "ID"}} lang-active-id{{end}}" id="langToggleBtn" title="Toggle Language (Ctrl+L)">{{if eq .Lang "ID"}}ID{{else}}EN{{end}}</button>
+            </div>
+          </div>
+          <input type="file" id="imageFileInput" accept="image/*" style="display: none;">
+          <textarea id="editorTextarea" name="content" class="editor-textarea" placeholder="- Start writing..." autofocus spellcheck="false">{{.Content}}</textarea>
+        </div>
+
         <div class="editor-footer-help">
-          <span class="shortcut-hint"><kbd>Ctrl+S</kbd> to save</span>
-          <span class="shortcut-hint"><kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> to indent</span>
-          <span class="shortcut-hint"><kbd>Enter</kbd> to continue bullet</span>
+          <span class="shortcut-hint"><kbd>Ctrl+S</kbd> save</span>
+          <span class="shortcut-hint"><kbd>Ctrl+B</kbd> bold</span>
+          <span class="shortcut-hint"><kbd>Ctrl+I</kbd> italic</span>
+          <span class="shortcut-hint"><kbd>Ctrl+K</kbd> wikilink</span>
+          <span class="shortcut-hint"><kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> indent</span>
+          <span class="shortcut-hint"><kbd>Enter</kbd> bullet</span>
+          <span class="shortcut-hint"><kbd>Ctrl+L</kbd> lang</span>
         </div>
       </div>
 
